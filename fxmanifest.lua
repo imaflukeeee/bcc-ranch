@@ -3,7 +3,9 @@ fx_version "adamant"
 rdr3_warning 'I acknowledge that this is a prerelease build of RedM, and I am aware my resources *will* become incompatible once RedM ships.'
 
 lua54 'yes'
-author 'BCC Team @Jake2k4'
+author 'BCC Team @Jake2k4 / Modified'
+
+ui_page 'ui/index.html'
 
 shared_scripts {
     '/configs/*.lua',
@@ -11,29 +13,39 @@ shared_scripts {
     'languages/*.lua'
 }
 
+files {
+    'ui/index.html',
+    'ui/style.css',
+    'ui/script.js'
+}
+
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     '/server/helpers/dbUpdater.lua',
     '/server/helpers/functions.lua',
     '/server/helpers/controllers.lua',
-    '/server/main.lua',
-    '/server/services/*.lua'
+    '/server/main.lua'
+    -- ลบ '/server/services/*.lua' ออก หรือเลือกโหลดเฉพาะไฟล์ที่จำเป็นเกี่ยวกับการ spawn สัตว์
 }
 
 client_scripts {
+    '@PolyZone/client.lua',
+    '@PolyZone/BoxZone.lua',
+    '@PolyZone/EntityZone.lua',
+    '@PolyZone/CircleZone.lua',
+    '@PolyZone/ComboZone.lua',
     '/client/helpers/functions.lua',
     '/client/main.lua',
-    '/client/services/animalshelper/*.lua',
-    '/client/services/*.lua'
+    '/client/services/animalshelper/wandering.lua',
+    '/client/services/animalshelper/herdanimals.lua'
 }
 
 dependency {
     'vorp_core',
     'vorp_character',
     'vorp_inventory',
-    'feather-menu',
-    'bcc-utils',
-    'bcc-minigames',
+    'bcc-utils'
+    -- ลบ feather-menu และ bcc-minigames ทิ้ง
 }
 
 version '2.7.2'

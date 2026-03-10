@@ -12,27 +12,6 @@ else
     end
 end
 
-FeatherMenu = exports['feather-menu'].initiate()
-BccUtils = exports['bcc-utils'].initiate()
-MiniGame = exports['bcc-minigames'].initiate()
-
-BCCRanchMenu = FeatherMenu:RegisterMenu('bcc-ranch:Menu', {
-    top = '40%',
-    left = '20%',
-    ['720width'] = '400px',
-    ['1080width'] = '500px',
-    ['2kwidth'] = '600px',
-    ['4kwidth'] = '800px',
-    style = {},
-    contentslot = {
-        style = { --This style is what is currently making the content slot scoped and scrollable. If you delete this, it will make the content height dynamic to its inner content.
-            ['height'] = '500px',
-            ['min-height'] = '500px'
-        }
-    },
-    draggable = true
-})
-
 function PlayAnim(animDict, animName, time) --function to play an animation
     RequestAnimDict(animDict)
     while not HasAnimDictLoaded(animDict) do
@@ -94,37 +73,17 @@ function SetRelAndFollowPlayer(pedObjs)
 end
 
 function Notify(message, typeOrDuration, maybeDuration)
-    local notifyType = "info"
     local notifyDuration = 6000
 
-    -- Detect which argument is which
-    if type(typeOrDuration) == "string" then
-        notifyType = typeOrDuration
-        notifyDuration = tonumber(maybeDuration) or 6000
-    elseif type(typeOrDuration) == "number" then
+    -- Detect duration input
+    if type(typeOrDuration) == "number" then
         notifyDuration = typeOrDuration
+    elseif type(maybeDuration) == "number" then
+        notifyDuration = maybeDuration
     end
 
-    if Config.Notify == "feather-menu" then
-        FeatherMenu:Notify({
-            message = message,
-            type = notifyType,
-            autoClose = notifyDuration,
-            position = "top-center",
-            transition = "slide",
-            icon = true,
-            hideProgressBar = false,
-            rtl = false,
-            style = {},
-            toastStyle = {},
-            progressStyle = {}
-        })
-    elseif Config.Notify == "vorp-core" then
-        -- Only message and duration supported
-        VORPcore.NotifyRightTip(message, notifyDuration)
-    else
-        print("^1[Notify] Invalid Config.Notify: " .. tostring(Config.Notify))
-    end
+    -- Force using vorp-core since we removed feather-menu
+    VORPcore.NotifyRightTip(message, notifyDuration)
 end
 
 BccUtils.RPC:Register("bcc-ranch:NotifyClient", function(data)
@@ -133,7 +92,9 @@ end)
 
 function ClearAllRanchBlips()
     for _, blip in ipairs(activeBlips) do
-        blip:Remove()
+        if blip and blip.Remove then
+            blip:Remove()
+        end
     end
     activeBlips = {}
 end
@@ -150,39 +111,6 @@ function ClearAllRanchEntities()
         wanderingPeds = {}
         devPrint("[Cleanup] Cleared wanderingPeds")
     end
-
-    -- 2. Feed animals
-    if feedPeds then
-        for _, ped in ipairs(feedPeds) do
-            if DoesEntityExist(ped) then
-                SetEntityAsMissionEntity(ped, true, true)
-                DeletePed(ped)
-            end
-        end
-        feedPeds = {}
-        devPrint("[Cleanup] Cleared feedPeds")
-    end
-
-    -- 3. Butchering ped
-    if butcheringPed and DoesEntityExist(butcheringPed) then
-        SetEntityAsMissionEntity(butcheringPed, true, true)
-        DeletePed(butcheringPed)
-        devPrint("[Cleanup] Deleted butcheringPed")
-    end
-    butcheringPed = nil
-
-    -- 4. Butchering blip
-    if butcheringPedBlip and butcheringPedBlip.Remove then
-        butcheringPedBlip:Remove()
-        devPrint("[Cleanup] Removed butcheringPedBlip")
-    end
-    butcheringPedBlip = nil
-
-    -- 5. Harvest ped
-    if harvestPed and DoesEntityExist(harvestPed) then
-        SetEntityAsMissionEntity(harvestPed, true, true)
-        DeletePed(harvestPed)
-        devPrint("[Cleanup] Deleted harvestPed")
-    end
-    harvestPed = nil
+    
+    -- ลบการจัดการ ped ส่วนที่ถูกยกเลิก (butcheringPed, feedPeds, harvestPed) ออกแล้ว
 end

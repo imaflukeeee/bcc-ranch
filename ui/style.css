@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap');
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Kanit', sans-serif;
+    user-select: none; /* ห้ามลากคลุมข้อความ */
+}
+
+.container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    background: rgba(45, 35, 25, 0.95);
+    border: 3px solid #8B5A2B;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #8B5A2B;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #FFD700;
+}
+
+#close-btn {
+    background: #d9534f;
+    border: none;
+    color: white;
+    font-size: 16px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#close-btn:hover { background: #c9302c; }
+
+.shop-section h2, .my-animals-section h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #f0ad4e;
+}
+
+.buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.buy-btn {
+    background: #5cb85c;
+    border: none;
+    padding: 10px 15px;
+    color: white;
+    font-size: 16px;
+    font-family: 'Kanit', sans-serif;
+    border-radius: 5px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.buy-btn:hover { background: #4cae4c; transform: scale(1.05); transition: 0.2s; }
+
+hr {
+    border-color: #8B5A2B;
+    margin: 20px 0;
+}
+
+.animal-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.animal-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border: 1px solid #555;
+}
+
+.feed-btn {
+    background: #337ab7;
+    border: none;
+    padding: 5px 10px;
+    color: white;
+    font-family: 'Kanit', sans-serif;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.feed-btn:hover { background: #286090; }
+
+/* Scrollbar สำหรับลิสต์สัตว์ */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #222; }
+::-webkit-scrollbar-thumb { background: #8B5A2B; border-radius: 4px; }

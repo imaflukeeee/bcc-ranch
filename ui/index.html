@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranch Management</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="container" style="display: none;">
+        <div class="header">
+            <h1 id="zone-title">พื้นที่ฟาร์ม</h1>
+            <button id="close-btn" onclick="closeUI()">✖</button>
+        </div>
+
+        <div class="content">
+            <div class="shop-section">
+                <h2>🛒 ร้านค้าสัตว์เลี้ยง</h2>
+                <div class="buttons">
+                    <button class="buy-btn" onclick="buyAnimal('cow')">🐮 ซื้อวัว ($50)</button>
+                    <button class="buy-btn" onclick="buyAnimal('pig')">🐷 ซื้อหมู ($30)</button>
+                    <button class="buy-btn" onclick="buyAnimal('chicken')">🐔 ซื้อไก่ ($10)</button>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="my-animals-section">
+                <h2>🐾 สัตว์เลี้ยงของฉัน</h2>
+                <div id="animal-list" class="animal-list">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

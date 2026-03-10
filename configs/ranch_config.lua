@@ -1,65 +1,55 @@
 ConfigRanch = {
     ranchSetup = {
-        ranchConditionDecreaseInterval = 900000, -- 5 minutes (Time that must pass before ranch condition decreases)
-        ranchConditionDecreaseAmount = 10,       -- Amount to decrease ranch condition by
-        taxDay = 23,                             -- Day of the month that taxes are collected
-        taxResetDay = 1,                         -- Day of the month that taxes are reset
-        ranchBlip = "blip_mp_roundup",           --Main ranch blip
-        ranchInvLimit = 200,                     -- Inventory limit for ranch
-        manageRanchKey = "B",                    -- Key to press to manage ranch (B by default)
-        ChoreKey = "G",
-        skinKey = "G",
-        dropHayKey = "G",
-        pickupHayKey = "G",
-        harvestEggsKey = "G",
-        milkAnimalKey = "G",
-        shearAnimalKey = "G",
-        maxRanchCondition = 100, -- Max ranch condition
-        herdingCooldown = 60,    -- 1 minute (Time that must pass before you can herd again)
-        feedingCooldown = 60,    -- 1 minute (Time that must pass before you can feed again)
-        animalFollowSettings = {
-            offsetX = 1.0,       -- Offset X for animals to follow player
-            offsetY = 1.0,       -- Offset Y for animals to follow player
-            offsetZ = 1.0        -- Offset Z for animals to follow player
-        },
-        animalsWalkOnly = false, -- Should animals only walk
-        choreSetup = {
-            choreMinigameSettings = {
-                focus = true,         -- Should minigame take nui focus (required)
-                cursor = false,       -- Should minigame have cursor
-                maxattempts = 2,      -- How many fail attempts are allowed before game over
-                type = 'bar',         -- What should the bar look like. (bar, trailing)
-                userandomkey = false, -- Should the minigame generate a random key to press?
-                keytopress = 'E',     -- userandomkey must be false for this to work. Static key to press
-                keycode = 69,         -- The JS keycode for the keytopress
-                speed = 25,           -- How fast the orbiter grows
-                strict = true         -- if true, letting the timer run out counts as a failed attempt
+        animalFollowSettings = { offsetX = 1.0, offsetY = 1.0, offsetZ = 1.0 },
+        animalsWalkOnly = false,
+    },
+
+    Zones = {
+        ['ValentineRanch'] = {
+            name = "Valentine Farm",
+            showBlip = true,
+            blipSprite = "blip_mp_roundup",
+            coords = vector3(-3826.84, -3488.84, 58.91),
+            zone = {
+                coords = {
+                    vector2(-3847.67, -3512.68),
+                    vector2(-3841.52, -3460.61),
+                    vector2(-3792.64, -3478.06),
+                    vector2(-3805.17, -3518.63)
+                },
+                minZ = 54.0, maxZ = 66.0, debugPoly = false
             },
-            milkingMinigameConfig = {
-                focus = true,  -- Should minigame take nui focus (required)
-                cursor = true, -- Should minigame have cursor  (required)
-                timer = 30,    -- The amount of seconds the game will run for
-                minMilkPerSqueez = 100.0,
-                maxMilkPerSqueez = 200.0
-            },
-            choreCooldown = 120, -- 1 minute (Time that must pass before you can complete another chore after doing one)
-            choreMinigames = true,
-            shovelHayCondInc = 10,
-            shovelHayAnimTime = 5000,
-            waterAnimalsCondInc = 10,
-            waterAnimalsAnimTime = 5000,
-            repairFeedTroughCondInc = 10,
-            repairFeedTroughAnimTime = 5000,
-            shovelPoopCondInc = 10,
-            shovelPoopAnimTime = 5000,
-            shovelPoopRewardItem = "fertilizer",
-            shovelPoopRewardAmount = 5
-        },
-        npc = {
-            show = true,
-            key = "G",          -- Key to place NPC
-            keyBack = "Backspace", -- Key to cancel NPC placement
-            model = "a_m_m_rancher_01",
+            allowedAnimals = {
+                ['cow'] = { 
+                    price = 50, 
+                    maxLimit = 5,
+                    growthTime = 60,
+                    feedItem = "corn",
+                    -- กำหนดไอเทมผลผลิตที่ได้รับตอนโต 100% (ใส่กี่ชิ้น/กี่ชนิดก็ได้)
+                    rewards = {
+                        { item = "meat", amount = 3 },
+                        { item = "milk", amount = 2 }
+                    }
+                },
+                ['pig'] = { 
+                    price = 30, 
+                    maxLimit = 10, 
+                    growthTime = 60,
+                    feedItem = "corn",
+                    rewards = {
+                        { item = "meat", amount = 2 }
+                    }
+                },
+                ['chicken'] = { 
+                    price = 10, 
+                    maxLimit = 15, 
+                    growthTime = 60,
+                    feedItem = "corn",
+                    rewards = {
+                        { item = "egg", amount = 5 }
+                    }
+                }
+            }
         }
     }
 }
