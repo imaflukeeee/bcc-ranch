@@ -3,7 +3,7 @@ local VORPInv = exports.vorp_inventory:vorp_inventoryApi()
 local BccUtils = exports['bcc-utils'].initiate()
 
 -- ==========================================
--- Helper Function: คำนวณสถานะเวลาและความหิวล่าสุด
+-- Helper Function: คำนวณสถานะเวลาและความหิวล่าสุด (แก้ไขใหม่ 100%)
 -- ==========================================
 local function GetCalculatedAnimalState(animalData)
     local aConfig = ConfigAnimals.animalSetup[animalData.animal_type .. "s"] or ConfigAnimals.animalSetup[animalData.animal_type]
@@ -17,7 +17,8 @@ local function GetCalculatedAnimalState(animalData)
     local changed = false
     local acc_growth = animalData.accumulated_growth
     local is_hungry_val = animalData.is_hungry
-    
+    local feed_count = animalData.feed_count
+
     local isAnimalHungry = (is_hungry_val == 1 or is_hungry_val == true)
     local last_feed = animalData.last_feed_time
 
@@ -27,25 +28,34 @@ local function GetCalculatedAnimalState(animalData)
     end
 
     if not isAnimalHungry and acc_growth < reqTime then
-        if elapsed >= timePerFeed then
-            acc_growth = acc_growth + timePerFeed
+        local isFullyFed = (feed_count >= reqFeeds)
+        local mealCapacity = timePerFeed
+        -- ถ้าอาหารครบแล้ว อนุญาตให้เวลาไหลรวดเดียวจนถึง 100% (ไม่จำกัดแค่ทีละ 30 วิ)
+        if isFullyFed then
+            mealCapacity = reqTime - acc_growth
+        end
+
+        if elapsed >= mealCapacity then
+            acc_growth = acc_growth + mealCapacity
             if acc_growth >= reqTime then
                 acc_growth = reqTime
-                isAnimalHungry = false 
-                elapsed = 0
+                isAnimalHungry = false
             else
-                isAnimalHungry = true 
-                elapsed = timePerFeed
+                isAnimalHungry = true
             end
+            elapsed = 0 -- รีเซ็ตเวลาสำหรับรอบถัดไป
             changed = true
         end
     end
 
     if changed then
         local db_hungry_val = isAnimalHungry and 1 or 0
-        exports.oxmysql:execute('UPDATE player_ranch_animals SET accumulated_growth = ?, is_hungry = ? WHERE id = ?', {acc_growth, db_hungry_val, animalData.id})
+        -- อัปเดตข้อมูลลงฐานข้อมูล พร้อมปรับ last_feed_time ป้องกันเวลาเพี้ยน
+        exports.oxmysql:execute('UPDATE player_ranch_animals SET accumulated_growth = ?, is_hungry = ?, last_feed_time = ? WHERE id = ?', 
+            {acc_growth, db_hungry_val, os.time(), animalData.id})
         animalData.accumulated_growth = acc_growth
         animalData.is_hungry = db_hungry_val
+        animalData.last_feed_time = os.time()
     end
 
     local display_growth = acc_growth
@@ -58,8 +68,11 @@ local function GetCalculatedAnimalState(animalData)
     animalData.req_time = reqTime
     animalData.req_feeds = reqFeeds
     
-    -- คำนวณเวลาในกระเพาะที่ย่อยไปแล้วส่งไปให้ UI
-    animalData.meal_elapsed = isAnimalHungry and timePerFeed or elapsed
+    local meal_elap = elapsed
+    if isAnimalHungry then
+        meal_elap = timePerFeed
+    end
+    animalData.meal_elapsed = meal_elap
 
     return animalData
 end
@@ -115,7 +128,7 @@ BccUtils.RPC:Register("bcc-ranch:server:buyAnimal", function(data, cb, source)
         
         local count = tonumber(currentCount) or 0
         if count >= maxLimit then
-            cb(false, "You have reached the maximum capacity for " .. animalType .. " in this zone (" .. maxLimit .. ")")
+            cb(false, "")
             return
         end
 
@@ -124,15 +137,15 @@ BccUtils.RPC:Register("bcc-ranch:server:buyAnimal", function(data, cb, source)
             character.removeCurrency(0, price) 
             
             exports.oxmysql:insert('INSERT INTO player_ranch_animals (identifier, charid, zone_id, animal_type, coords, accumulated_growth, feed_count, last_feed_time, is_hungry) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
-            {character.identifier, character.charIdentifier, zoneId, animalType, json.encode(coords), 0, 0, 0, 1}, 
+            {character.identifier, character.charIdentifier, zoneId, animalType, json.encode(coords), 0, 0, os.time(), 1}, 
             function(insertId)
                 data.dbId = insertId
                 data.is_hungry = 1
                 data.feed_count = 0
-                cb(true, "Successfully bought a " .. animalType .. "!", data)
+                cb(true, "", data)
             end)
         else
-            cb(false, "Not enough money (Needed: $" .. price .. ")")
+            cb(false, "เงินของคุณไม่พอ (ต้องการ: $" .. price .. ")")
         end
     end)
 end)
@@ -150,22 +163,20 @@ BccUtils.RPC:Register("bcc-ranch:server:feedAnimal", function(data, cb, source)
             local animalData = GetCalculatedAnimalState(result[1])
 
             if animalData.current_growth >= animalData.req_time then
-                cb(false, "This animal is fully grown! It's ready for harvest.")
+                cb(false, "")
                 return
             end
 
-            -- เช็คว่าให้อาหารครบโควต้าหรือยัง
             if animalData.feed_count >= animalData.req_feeds then
-                cb(false, "This animal has eaten enough for its lifetime!")
+                cb(false, "")
                 return
             end
 
             local timePerFeed = math.floor(animalData.req_time / animalData.req_feeds)
             local halfTime = math.floor(timePerFeed * 0.5)
 
-            -- ถ้ายอมให้กินก่อนหิวได้ แต่ต้องย่อยไปแล้วอย่างน้อย 50%
             if animalData.is_hungry == 0 and animalData.meal_elapsed < halfTime then
-                cb(false, "สัตว์ยังอิ่มอยู่มาก! รอให้ย่อยอีกสักนิด (อีกประมาณ " .. (halfTime - animalData.meal_elapsed) .. " วินาที)")
+                cb(false, "")
                 return
             end
 
@@ -179,7 +190,15 @@ BccUtils.RPC:Register("bcc-ranch:server:feedAnimal", function(data, cb, source)
             if itemCount and itemCount > 0 then
                 VORPInv.subItem(_source, requiredItem, 1)
 
-                -- เก็บเวลาที่อุตส่าห์เติบโตมาได้ก่อนจะรีเซ็ตกระเพาะ (Top-up system)
+                TriggerClientEvent("mtn_notify:sendItem", _source, {
+                    title = "Removed",
+                    description = "1x " .. requiredItem,
+                    icon = "nui://vorp_inventory/html/img/items/" .. requiredItem .. ".png",
+                    placement = "bottom-right",
+                    titleColor = "#FF0000",
+                    duration = 3000
+                })
+
                 local new_acc_growth = animalData.accumulated_growth
                 if animalData.is_hungry == 0 then
                     new_acc_growth = new_acc_growth + animalData.meal_elapsed
@@ -187,12 +206,12 @@ BccUtils.RPC:Register("bcc-ranch:server:feedAnimal", function(data, cb, source)
 
                 exports.oxmysql:execute('UPDATE player_ranch_animals SET feed_count = feed_count + 1, last_feed_time = ?, is_hungry = 0, accumulated_growth = ? WHERE id = ?', {os.time(), new_acc_growth, animalDbId})
 
-                cb(true, "Successfully fed the " .. animalType .. " (" .. (animalData.feed_count + 1) .. "/" .. animalData.req_feeds .. ")")
+                cb(true, "")
             else
-                cb(false, "You don't have " .. requiredItem .. " in your inventory")
+                cb(false, "คุณไม่มี " .. requiredItem .. " ในกระเป๋า")
             end
         else
-            cb(false, "Error: Animal data not found in Database")
+            cb(false, "")
         end
     end)
 end)
@@ -219,30 +238,59 @@ BccUtils.RPC:Register("bcc-ranch:server:reciveItem", function(data, cb, source)
                 local timeLeft = animalData.req_time - animalData.current_growth
                 local mins = math.floor(timeLeft / 60)
                 local secs = timeLeft % 60
-                cb(false, "Not fully grown! Time remaining: " .. mins .. "m " .. secs .. "s.")
+                cb(false, "ยังโตไม่เต็มที่เหลือเวลาอีก: " .. mins .. " นาที " .. secs .. " วินาที")
                 return
             end
 
             local zoneConfig = ConfigRanch.Zones[animalData.zone_id]
             if not zoneConfig or not zoneConfig.allowedAnimals[animalType] then
-                cb(false, "Error: Zone Rewards data not found")
+                cb(false, "")
                 return
             end
 
             local rewards = zoneConfig.allowedAnimals[animalType].rewards
-            local rewardText = ""
 
+            -- ==========================================
+            -- [เพิ่มใหม่] ป้องกันบั๊กกระเป๋าเต็มแล้วสัตว์ค้าง
+            -- ==========================================
+            local canCarryAll = true
+            if rewards then
+                for _, reward in ipairs(rewards) do
+                    -- เช็คว่าถือไอเทมนี้เพิ่มได้ไหม ถ้าไม่ได้ให้หยุดการทำงานทันที
+                    if not exports.vorp_inventory:canCarryItem(_source, reward.item, reward.amount) then
+                        canCarryAll = false
+                        break
+                    end
+                end
+            end
+
+            if not canCarryAll then
+                cb(false, "กระเป๋าของคุณเต็มไม่สามารถเก็บผลผลิตได้")
+                return
+            end
+            -- ==========================================
+
+            local rewardText = ""
             if rewards then
                 for _, reward in ipairs(rewards) do
                     VORPInv.addItem(_source, reward.item, reward.amount)
                     rewardText = rewardText .. reward.amount .. "x " .. reward.item .. " "
+
+                    TriggerClientEvent("mtn_notify:sendItem", _source, {
+                        title = "Added",
+                        description = reward.amount .. "x " .. reward.item,
+                        icon = "nui://vorp_inventory/html/img/items/" .. reward.item .. ".png",
+                        placement = "bottom-right",
+                        titleColor = "#009900",
+                        duration = 3500
+                    })
                 end
             end
 
             exports.oxmysql:execute('DELETE FROM player_ranch_animals WHERE id = ?', {animalDbId})
-            cb(true, "Successfully harvested! Received: " .. rewardText)
+            cb(true, "")
         else
-            cb(false, "Error: Animal data not found")
+            cb(false, "")
         end
     end)
 end)
