@@ -1,9 +1,10 @@
 let currentZone = "";
 let myAnimals = [];
-let allowedAnimals = {}; // เก็บ Config สัตว์จากโซนปัจจุบัน
+let allowedAnimals = {}; 
+let uiTimer = null; 
 
 // ==========================================
-// 1. ส่วนรับคำสั่งจาก Lua (NUI Listener) - ส่วนนี้ที่หายไป!
+// 1. ส่วนรับคำสั่งจาก Lua (NUI Listener)
 // ==========================================
 window.addEventListener('message', function(event) {
     let item = event.data;
@@ -15,16 +16,44 @@ window.addEventListener('message', function(event) {
         
         document.getElementById('zone-title').innerText = "ทำฟาร์มที่: " + currentZone;
         
-        renderShop();       // สร้างปุ่มร้านค้า
-        renderMyAnimals();  // โชว์สัตว์ของเรา
-        
-        // แสดงหน้าต่าง UI
+        myAnimals.forEach(a => {
+            a.current_growth = a.current_growth || 0;
+            a.req_time = a.req_time || 900; 
+            a.feed_count = a.feed_count || 0;
+            a.req_feeds = a.req_feeds || 2;
+            a.is_hungry = a.is_hungry !== undefined ? a.is_hungry : 1;
+            a.meal_elapsed = a.meal_elapsed || 0; 
+        });
+
+        renderShop();       
+        renderMyAnimals();  
         document.getElementById('app').style.display = 'block';
+
+        // ==================================================
+        // ระบบเวลานับถอยหลัง Real-time บน UI
+        // ==================================================
+        if(uiTimer) clearInterval(uiTimer);
+        uiTimer = setInterval(() => {
+            let needsRender = false;
+            myAnimals.forEach(a => {
+                if ((a.is_hungry == 0 || a.is_hungry === false) && a.current_growth < a.req_time) {
+                    a.current_growth++;
+                    a.meal_elapsed++; 
+                    
+                    let timePerFeed = Math.floor(a.req_time / a.req_feeds);
+
+                    if (a.meal_elapsed >= timePerFeed && a.feed_count < a.req_feeds) {
+                        a.meal_elapsed = timePerFeed;
+                        a.is_hungry = 1; // สั่งให้หิว!
+                    }
+                    needsRender = true;
+                }
+            });
+            if(needsRender) renderMyAnimals();
+        }, 1000);
     }
 
-    if (item.action === "closeUI") { 
-        closeUI(); 
-    }
+    if (item.action === "closeUI") { closeUI(); }
 });
 
 // ==========================================
@@ -32,6 +61,7 @@ window.addEventListener('message', function(event) {
 // ==========================================
 function closeUI() {
     document.getElementById('app').style.display = 'none';
+    if(uiTimer) clearInterval(uiTimer); 
     fetch(`https://${GetParentResourceName()}/closeUI`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -39,56 +69,36 @@ function closeUI() {
     });
 }
 
-// กดปุ่ม ESC เพื่อปิดเมนู
 document.onkeyup = function(data) {
-    if (data.key == "Escape") {
-        closeUI();
-    }
+    if (data.key == "Escape") { closeUI(); }
 };
 
-// ฟังก์ชันสร้างปุ่มซื้อสัตว์จาก Config
 function renderShop() {
-    const shopContainer = document.querySelector('.buttons'); // ชี้ไปที่คลาส buttons ใน HTML
+    const shopContainer = document.querySelector('.buttons');
     shopContainer.innerHTML = "";
 
-    // ดึงคีย์และข้อมูลสัตว์จาก Object (เช่น 'cow', 'pig')
     for (const [animalType, config] of Object.entries(allowedAnimals)) {
-        let nameTH = "สัตว์";
-        let icon = "🐾";
+        let nameTH = "สัตว์"; let icon = "🐾";
         if (animalType === "cow") { nameTH = "วัว"; icon = "🐮"; }
         if (animalType === "pig") { nameTH = "หมู"; icon = "🐷"; }
         if (animalType === "chicken") { nameTH = "ไก่"; icon = "🐔"; }
+        if (animalType === "sheep") { nameTH = "แกะ"; icon = "🐑"; }
+        if (animalType === "goat") { nameTH = "แพะ"; icon = "🐐"; }
 
-        // สร้างปุ่มโชว์ราคา และจำนวนลิมิต
         shopContainer.innerHTML += `
             <button class="buy-btn" onclick="buyAnimal('${animalType}')">
                 ${icon} ซื้อ${nameTH} ($${config.price}) <br> <span style="font-size:12px;">(ความจุ: ${config.maxLimit} ตัว)</span>
             </button>
         `;
     }
-
     if (shopContainer.innerHTML === "") {
         shopContainer.innerHTML = "<p style='color: white;'>โซนนี้ไม่เปิดขายสัตว์</p>";
     }
 }
 
-// ฟังก์ชันกดซื้อสัตว์
-function buyAnimal(animalType) {
-    fetch(`https://${GetParentResourceName()}/buyAnimal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ animalType: animalType, zone: currentZone })
-    })
-    .then(resp => resp.json())
-    .then(data => {
-        if (data.success) {
-            myAnimals.push(data.newAnimal);
-            renderMyAnimals();
-        }
-    });
-}
-
-// ฟังก์ชันวาด (Render) รายชื่อสัตว์
+// ==========================================
+// วาดหน้าจอ Progress Bars และข้อมูลสัตว์
+// ==========================================
 function renderMyAnimals() {
     const listContainer = document.getElementById('animal-list');
     listContainer.innerHTML = ""; 
@@ -103,26 +113,120 @@ function renderMyAnimals() {
         if (animal.animal_type === "cow") { nameTH = "วัว"; icon = "🐮"; }
         if (animal.animal_type === "pig") { nameTH = "หมู"; icon = "🐷"; }
         if (animal.animal_type === "chicken") { nameTH = "ไก่"; icon = "🐔"; }
+        if (animal.animal_type === "sheep") { nameTH = "แกะ"; icon = "🐑"; }
+        if (animal.animal_type === "goat") { nameTH = "แพะ"; icon = "🐐"; }
 
-        // เช็คสถานะความหิว และ การเติบโต
-        let statusText = animal.is_hungry ? "<span style='color:#ff4d4d;'>หิวอาหาร!</span>" : "<span style='color:#5cb85c;'>อิ่มแล้ว</span>";
-        let growthText = `เติบโต: ${animal.growth}%`;
+        // 1. คำนวณหลอด Growth (0 - 100%)
+        let percent = Math.min((animal.current_growth / animal.req_time) * 100, 100);
+        let timeLeft = animal.req_time - animal.current_growth;
+        let m = Math.floor(timeLeft / 60);
+        let s = Math.floor(timeLeft % 60);
 
-        // สลับปุ่มตามค่า Growth
+        let isHungry = (animal.is_hungry == 1 || animal.is_hungry === true);
+        let isFullyFed = (animal.feed_count >= animal.req_feeds); // เช็คว่าได้รับอาหารครบโควต้าหรือยัง
+        
+        let hungerPercent = 0;
+        let hungerText = "";
+        let barColor = "";
+        let statusText = "";
         let actionBtn = "";
-        if (animal.growth >= 100) {
-            actionBtn = `<button class="buy-btn" style="background:#f0ad4e;" onclick="reciveItem(${animal.id}, '${animal.animal_type}')">📦 เก็บเกี่ยวผลผลิต</button>`;
+
+        // ==================================================
+        // 2. จัดการสถานะ UI (แยกตามเงื่อนไขให้ชัดเจน)
+        // ==================================================
+        if (percent >= 100) {
+            // กรณีที่ 1: โตเต็มที่ 100% พร้อมเก็บเกี่ยว
+            hungerPercent = 100; 
+            hungerText = "<span style='color:#5cb85c;'>พร้อมเก็บเกี่ยว</span>";
+            barColor = "linear-gradient(90deg, #5cb85c, #4cae4c)"; 
+            statusText = "<span style='color:#5cb85c;'>✅ เติบโตเต็มที่แล้ว!</span>";
+            actionBtn = `<button class="buy-btn" style="background:#f0ad4e; font-weight:bold; width: 100%; padding: 12px 10px;" onclick="reciveItem(${animal.id}, '${animal.animal_type}')">📦 เก็บเกี่ยว</button>`;
+            
+        } else if (isFullyFed) {
+            // กรณีที่ 2: อาหารครบโควต้าแล้ว แต่ยังโตไม่เต็ม 100% (สถานะสมบูรณ์แบบ)
+            hungerPercent = 100; 
+            hungerText = "<span style='color:#FFD700;'>🌟 อาหารครบถ้วน (รอโตอย่างเดียว)</span>";
+            barColor = "linear-gradient(90deg, #FFD700, #ff8c00)"; // เปลี่ยนหลอดเป็นสีทอง!
+            statusText = `<span style='color:#FFD700;'>💤 รอเวลา (โตอีก: ${m}น. ${s}วิ.)</span>`;
+            actionBtn = `<button class="feed-btn" style="background:#555; cursor:not-allowed; width: 100%; padding: 12px 10px;" disabled>⏳ รอเก็บเกี่ยวผลผลิต</button>`;
+
+        } else if (isHungry) {
+            // กรณีที่ 3: หิวโซ รอการป้อนอาหาร
+            hungerPercent = 0; 
+            hungerText = "<span style='color:#ff4d4d;'>หิวโซ! (ต้องการอาหารด่วน)</span>";
+            barColor = "linear-gradient(90deg, #d9534f, #c9302c)"; 
+            statusText = `<span style='color:#ff4d4d;'>⚠️ หิวอาหาร!</span>`;
+            actionBtn = `<button class="feed-btn" style="width: 100%; padding: 12px 10px;" onclick="feedAnimal(${animal.id}, '${animal.animal_type}')">🌾 ให้อาหาร</button>`;
+
         } else {
-            actionBtn = `<button class="feed-btn" onclick="feedAnimal(${animal.id}, '${animal.animal_type}')">🌾 ให้อาหาร</button>`;
+            // กรณีที่ 4: วงจรการย่อยอาหารปกติ (กำลังเติบโต)
+            let timePerFeed = animal.req_time / animal.req_feeds;
+            let remainingInMeal = timePerFeed - animal.meal_elapsed;
+            let actualPercent = Math.max((remainingInMeal / timePerFeed) * 100, 0);
+
+            if (actualPercent > 50) {
+                hungerPercent = 100; 
+                hungerText = "<span style='color:#5bc0de;'>อิ่มอยู่ท้อง (รอย่อย)</span>";
+                barColor = "linear-gradient(90deg, #5bc0de, #31b0d5)"; 
+                statusText = `<span style='color:#5cb85c;'>💤 โตอีก: ${m}น. ${s}วิ.</span>`;
+                actionBtn = `<button class="feed-btn" style="background:#555; cursor:not-allowed; width: 100%; padding: 12px 10px;" disabled>⏳ รอย่อย</button>`;
+            } else {
+                hungerPercent = (actualPercent / 50) * 100;
+                
+                if (hungerPercent > 50) {
+                    hungerText = "<span style='color:#f0ad4e;'>กำลังย่อยอาหาร (รอสักพัก)</span>";
+                    barColor = "linear-gradient(90deg, #f0ad4e, #ec971f)"; 
+                    statusText = `<span style='color:#5cb85c;'>💤 โตอีก: ${m}น. ${s}วิ.</span>`;
+                    actionBtn = `<button class="feed-btn" style="background:#555; cursor:not-allowed; width: 100%; padding: 12px 10px;" disabled>⏳ รอย่อย</button>`;
+                } else {
+                    hungerText = "<span style='color:#d9534f;'>ท้องเริ่มว่าง (เติมอาหารได้)</span>";
+                    barColor = "linear-gradient(90deg, #d9534f, #c9302c)"; 
+                    statusText = `<span style='color:#ff4d4d;'>⚠️ ให้อาหารเพิ่มได้</span>`;
+                    actionBtn = `<button class="feed-btn" style="width: 100%; padding: 12px 10px;" onclick="feedAnimal(${animal.id}, '${animal.animal_type}')">🌾 ให้อาหาร</button>`;
+                }
+            }
+        }
+
+        // 3. สร้างหลอด Feed Blocks (x/x)
+        let feedBlocksHTML = '';
+        for(let i = 1; i <= animal.req_feeds; i++) {
+            let filled = (i <= animal.feed_count) ? 'filled' : '';
+            feedBlocksHTML += `<div class="feed-block ${filled}"></div>`;
         }
 
         let animalHTML = `
             <div class="animal-card">
-                <div>
-                    <strong>${icon} ${nameTH} (ID: ${animal.id})</strong><br>
-                    <small>สถานะ: ${statusText} | ${growthText}</small>
+                <div style="flex: 1; padding-right: 15px;">
+                    <div style="display:flex; justify-content: space-between; margin-bottom: 5px;">
+                        <strong style="font-size:16px;">${icon} ${nameTH} <span style="color:#aaa; font-size:12px;">(ID: ${animal.id})</span></strong>
+                        <small>${statusText}</small>
+                    </div>
+
+                    <div class="status-label">
+                        <span>🌱 ความก้าวหน้าการเติบโต</span>
+                        <span>${Math.floor(percent)}%</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar-fill-growth" style="width: ${percent}%;"></div>
+                        <div class="bar-dashes"></div>
+                    </div>
+
+                    <div class="status-label">
+                        <span>🍖 สถานะกระเพาะ: ${hungerText}</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar-fill-hunger" style="width: ${hungerPercent}%; background: ${barColor};"></div>
+                        <div class="bar-dashes"></div>
+                    </div>
+
+                    <div class="status-label">
+                        <span>🌾 จำนวนมื้อที่กินไปแล้ว (${animal.feed_count}/${animal.req_feeds})</span>
+                    </div>
+                    <div class="feed-blocks">
+                        ${feedBlocksHTML}
+                    </div>
                 </div>
-                <div>
+                <div style="display:flex; align-items:center; justify-content:center; min-width: 120px;">
                     ${actionBtn}
                 </div>
             </div>
@@ -131,33 +235,67 @@ function renderMyAnimals() {
     });
 }
 
-// อัปเดตฟังก์ชันให้อาหาร
+// ==========================================
+// 3. ฟังก์ชันตัวช่วย: ส่งคำสั่งให้ Server ดึงข้อมูลใหม่
+// ==========================================
+function refreshData() {
+    fetch(`https://${GetParentResourceName()}/refreshAnimals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    });
+}
+
+// ==========================================
+// 4. ปุ่ม Action
+// ==========================================
+function buyAnimal(animalType) {
+    fetch(`https://${GetParentResourceName()}/buyAnimal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ animalType: animalType, zone: currentZone })
+    }).then(resp => resp.json()).then(data => {
+        if (data.success) { setTimeout(() => refreshData(), 400); }
+    });
+}
+
 function feedAnimal(dbId, animalType) {
+    let anim = myAnimals.find(a => a.id == dbId); 
+    if (anim) {
+        anim.is_hungry = 0;   
+        anim.feed_count += 1; 
+        anim.meal_elapsed = 0; 
+        renderMyAnimals();    
+    }
+
     fetch(`https://${GetParentResourceName()}/feedAnimal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dbId: dbId, animalType: animalType })
     }).then(resp => resp.json()).then(data => {
-        if (data.success) {
-            let anim = myAnimals.find(a => a.id === dbId);
-            if (anim) {
-                anim.is_hungry = 0;
-                anim.growth = Math.min(anim.growth + 20, 100); 
-            }
-            renderMyAnimals();
-        }
+        if (!data.success) { refreshData(); }
+    }).catch(err => {
+        refreshData();
     });
 }
 
-// ฟังก์ชันเก็บเกี่ยวผลผลิต
 function reciveItem(dbId, animalType) {
+    let index = myAnimals.findIndex(a => a.id == dbId);
+    let backupAnim = null;
+    
+    if(index > -1) {
+         backupAnim = myAnimals[index];     
+         myAnimals.splice(index, 1);        
+         renderMyAnimals();                 
+    }
+
     fetch(`https://${GetParentResourceName()}/reciveItem`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dbId: dbId, animalType: animalType })
     }).then(resp => resp.json()).then(data => {
-        if (data.success) {
-            myAnimals = myAnimals.filter(a => a.id !== dbId);
+        if (!data.success && backupAnim) {
+            myAnimals.push(backupAnim);
             renderMyAnimals();
         }
     });

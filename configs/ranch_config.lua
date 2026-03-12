@@ -25,6 +25,7 @@ ConfigRanch = {
                     maxLimit = 5,
                     growthTime = 60,
                     feedItem = "corn",
+                    requiredFeedCount = 2,
                     -- กำหนดไอเทมผลผลิตที่ได้รับตอนโต 100% (ใส่กี่ชิ้น/กี่ชนิดก็ได้)
                     rewards = {
                         { item = "meat", amount = 3 },
@@ -36,6 +37,7 @@ ConfigRanch = {
                     maxLimit = 10, 
                     growthTime = 60,
                     feedItem = "corn",
+                    requiredFeedCount = 2,
                     rewards = {
                         { item = "meat", amount = 2 }
                     }
@@ -45,6 +47,7 @@ ConfigRanch = {
                     maxLimit = 15, 
                     growthTime = 60,
                     feedItem = "corn",
+                    requiredFeedCount = 2,
                     rewards = {
                         { item = "egg", amount = 5 }
                     }

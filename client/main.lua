@@ -32,10 +32,10 @@ end)
 function SpawnLocalAnimal(animalData)
     local coords = json.decode(animalData.coords)
     
-    -- ค้นหาโมเดลตามประเภทสัตว์ (สามารถไปดึงจาก Config ได้ถ้าแยกไฟล์ไว้)
-    local modelStr = "a_c_cow"
-    if animalData.animal_type == "pig" then modelStr = "a_c_pig_01" end
-    if animalData.animal_type == "chicken" then modelStr = "a_c_chicken_01" end
+    -- แก้ไขการดึงชื่อ Model ให้ฉลาดขึ้น (เติม s ให้ตรงกับใน Config)
+    local typeKey = animalData.animal_type .. "s"
+    local aConfig = ConfigAnimals.animalSetup[typeKey] or ConfigAnimals.animalSetup[animalData.animal_type]
+    local modelStr = (aConfig and aConfig.model) or "a_c_cow"
     
     local modelHash = GetHashKey(modelStr)
 
@@ -100,26 +100,35 @@ CreateThread(function()
         local sleep = 1000
         
         if currentZone then
-            sleep = 1 -- ให้ลูปรันเร็วขึ้นเพื่อตรวจจับปุ่ม
+            sleep = 1
             ranchPromptGroup:ShowGroup("Buy")
             
             if openMenuPrompt:HasCompleted() then
                 devPrint("Trigger UI for zone: " .. currentZone)
                 
-                -- ดึงค่าสัตว์ที่อนุญาตจาก Config ของโซนปัจจุบัน
+                -- ดึงค่าสัตว์ที่อนุญาตจาก Config
                 local zoneConfig = ConfigRanch.Zones[currentZone]
                 local allowedAnimals = zoneConfig and zoneConfig.allowedAnimals or {}
                 
-                -- ส่ง Event ไปเปิด UI ตัวใหม่
-                SendNUIMessage({ 
-                    action = "openRanchUI", 
-                    zone = currentZone, 
-                    myAnimals = myAnimals, -- ส่งข้อมูลสัตว์ของตัวเองไปโชว์ใน UI ด้วย
-                    allowedAnimals = allowedAnimals -- ส่ง Config ไปให้ UI สร้างปุ่ม
-                })
-                SetNuiFocus(true, true)
+                -- โหลดข้อมูลสัตว์แบบ Real-time จาก Server ก่อนเปิด UI !! (สำคัญมาก)
+                BccUtils.RPC:Call("bcc-ranch:server:getMyAnimals", {}, function(success, freshAnimalsData)
+                    if success then
+                        myAnimals = freshAnimalsData -- อัปเดตข้อมูลความหิว/เวลาเติบโตล่าสุด
+                        
+                        -- ส่ง Event ไปเปิด UI ด้วยข้อมูลที่อัปเดตแล้ว
+                        SendNUIMessage({ 
+                            action = "openRanchUI", 
+                            zone = currentZone, 
+                            myAnimals = myAnimals, 
+                            allowedAnimals = allowedAnimals 
+                        })
+                        SetNuiFocus(true, true)
+                    else
+                        Notify("เกิดข้อผิดพลาดในการดึงข้อมูลสัตว์", "error", 3000)
+                    end
+                end)
                 
-                Wait(1500) -- ดีเลย์กันผู้เล่นกดรัวๆ
+                Wait(1500)
             end
         end
         Wait(sleep)
@@ -138,12 +147,10 @@ end)
 
 -- 2. เมื่อผู้เล่นกดปุ่ม "ซื้อสัตว์" ใน UI
 RegisterNUICallback('buyAnimal', function(data, cb)
-    print("[Ranch Client] Player clicked buy button in UI!")
     local animalType = data.animalType
     local zoneId = data.zone
 
     if not animalType or not zoneId then 
-        print("[Ranch Client] Error: Incomplete data from UI")
         cb({ success = false, message = "Incomplete data provided" })
         return 
     end
@@ -152,29 +159,23 @@ RegisterNUICallback('buyAnimal', function(data, cb)
     local pos = GetEntityCoords(ped)
     local coordsTable = { x = pos.x, y = pos.y, z = pos.z }
 
-    print("[Ranch Client] Sending buy request for " .. animalType .. " to Server...")
-    
     BccUtils.RPC:Call("bcc-ranch:server:buyAnimal", {
         animalType = animalType,
         zoneId = zoneId,
         coords = coordsTable
     }, function(success, message, newAnimalData)
-        
-        print("[Ranch Client] Server replied: Success=" .. tostring(success))
-        
         if success then
             Notify(message, "success", 4000)
             local animalForSpawn = {
                 id = newAnimalData.dbId,
                 animal_type = animalType,
-                coords = json.encode(newAnimalData.coords),
-                growth = 0,
-                is_hungry = 1
+                coords = json.encode(newAnimalData.coords)
             }
+            -- เสกสัตว์ขึ้นมาเดินเล่นทันที
             SpawnLocalAnimal(animalForSpawn)
-            table.insert(myAnimals, animalForSpawn)
-
-            cb({ success = true, message = message, newAnimal = animalForSpawn })
+            
+            -- คืนค่า Success ไปให้ UI ทำการเรียก refreshAnimals อัตโนมัติ
+            cb({ success = true, message = message })
         else
             Notify(message, "error", 4000)
             cb({ success = false, message = message })
@@ -184,7 +185,7 @@ end)
 
 -- 3. เมื่อผู้เล่นกดปุ่ม "ให้อาหาร" ใน UI
 RegisterNUICallback('feedAnimal', function(data, cb)
-    local dbId = data.dbId -- รับ ID สัตว์จากหน้า UI (เพื่อบอก Server ว่าให้อาหารตัวไหน)
+    local dbId = data.dbId
     local animalType = data.animalType
 
     BccUtils.RPC:Call("bcc-ranch:server:feedAnimal", {
@@ -193,18 +194,8 @@ RegisterNUICallback('feedAnimal', function(data, cb)
     }, function(success, message)
         if success then
             Notify(message, "success", 4000)
-            -- เล่นอนิเมชั่นให้อาหาร (เรียกใช้จาก helpers/functions.lua)
+            -- เล่นอนิเมชั่นให้อาหาร
             PlayAnim("amb_work@world_human_feed_pigs@working@throw_food_low@male_a@trans", "throw_trans_base", 3000)
-            
-            -- อัปเดตข้อมูลฝั่ง Client ให้ตรงกัน
-            for _, anim in ipairs(myAnimals) do
-                if anim.id == dbId then
-                    anim.is_hungry = 0
-                    anim.growth = math.min((anim.growth or 0) + 20, 100)
-                    break
-                end
-            end
-            
             cb({ success = true, message = message })
         else
             Notify(message, "error", 4000)
@@ -213,7 +204,7 @@ RegisterNUICallback('feedAnimal', function(data, cb)
     end)
 end)
 
--- 4. เมื่อผู้เล่นกดปุ่ม "เก็บเกี่ยวผลผลิต" (เปลี่ยนจาก sellAnimal เป็น reciveItem)
+-- 4. เมื่อผู้เล่นกดปุ่ม "เก็บเกี่ยวผลผลิต"
 RegisterNUICallback('reciveItem', function(data, cb)
     local dbId = data.dbId
     local animalType = data.animalType
@@ -225,19 +216,11 @@ RegisterNUICallback('reciveItem', function(data, cb)
         if success then
             Notify(message, "success", 4000)
             
-            -- ลบโมเดลสัตว์ตัวนี้ออกจากหน้าจอ (Local Ped)
+            -- ลบโมเดลสัตว์ตัวนี้ออกจากหน้าจอ
             local ped = spawnedPeds[dbId]
             if ped and DoesEntityExist(ped) then
                 DeletePed(ped)
-                spawnedPeds[dbId] = nil -- ลบออกจากตารางความจำ
-            end
-            
-            -- ลบออกจาก myAnimals ฝั่ง Client
-            for i, anim in ipairs(myAnimals) do
-                if anim.id == dbId then
-                    table.remove(myAnimals, i)
-                    break
-                end
+                spawnedPeds[dbId] = nil
             end
 
             cb({ success = true })
@@ -246,6 +229,27 @@ RegisterNUICallback('reciveItem', function(data, cb)
             cb({ success = false })
         end
     end)
+end)
+
+-- 5. รีเฟรชข้อมูล (ถูกเรียกจาก UI เมื่อ ซื้อ/ให้อาหาร/เก็บเกี่ยว สำเร็จ)
+RegisterNUICallback('refreshAnimals', function(data, cb)
+    if not currentZone then cb('ok') return end
+    
+    BccUtils.RPC:Call("bcc-ranch:server:getMyAnimals", {}, function(success, freshAnimalsData)
+        if success then
+            myAnimals = freshAnimalsData
+            local zoneConfig = ConfigRanch.Zones[currentZone]
+            local allowedAnimals = zoneConfig and zoneConfig.allowedAnimals or {}
+            
+            SendNUIMessage({ 
+                action = "openRanchUI", 
+                zone = currentZone, 
+                myAnimals = myAnimals,
+                allowedAnimals = allowedAnimals
+            })
+        end
+    end)
+    cb('ok')
 end)
 
 -- ==========================================

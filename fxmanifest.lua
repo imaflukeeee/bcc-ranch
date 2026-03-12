@@ -23,9 +23,7 @@ server_scripts {
     '@oxmysql/lib/MySQL.lua',
     '/server/helpers/dbUpdater.lua',
     '/server/helpers/functions.lua',
-    '/server/helpers/controllers.lua',
     '/server/main.lua'
-    -- ลบ '/server/services/*.lua' ออก หรือเลือกโหลดเฉพาะไฟล์ที่จำเป็นเกี่ยวกับการ spawn สัตว์
 }
 
 client_scripts {
@@ -45,7 +43,6 @@ dependency {
     'vorp_character',
     'vorp_inventory',
     'bcc-utils'
-    -- ลบ feather-menu และ bcc-minigames ทิ้ง
 }
 
 version '2.7.2'
