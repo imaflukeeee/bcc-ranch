@@ -1,35 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ranch Management</title>
+    <title>Ranch UI</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app" class="container" style="display: none;">
-        <div class="header">
-            <h1 id="zone-title">พื้นที่ฟาร์ม</h1>
-            <button id="close-btn" onclick="closeUI()">✖</button>
-        </div>
-
-        <div class="content">
-            <div class="shop-section">
-                <h2>🛒 ร้านค้าสัตว์เลี้ยง</h2>
-                <div class="buttons">
-                    </div>
+    <div id="app" style="display: none;">
+        <div class="glass-container">
+            <div class="header">
+                <h1 id="farm-name">FARM NAME</h1>
+                <button class="close-btn" onclick="closeUI()">X</button>
             </div>
 
-            <hr>
-
-            <div class="my-animals-section">
-                <h2>🐾 สัตว์เลี้ยงของฉัน</h2>
-                <div id="animal-list" class="animal-list">
+            <div class="content-grid">
+                <div class="left-panel">
+                    <div class="section-box shop-section">
+                        <h2>รายการสัตว์</h2>
+                        <div id="shop-list" class="shop-row"></div>
                     </div>
+
+                    <div class="section-box my-animals-section">
+                        <div class="section-header-flex">
+                            <h2>สัตว์ของฉัน</h2>
+                            <span id="animal-limit" class="limit-badge">0/5 Limit</span>
+                        </div>
+                        <div id="my-animals-list" class="animals-container">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="right-panel">
+                    <div class="section-box flex-section">
+                        <h2>อาหารที่ใช้</h2>
+                        <div id="req-items-list" class="item-list-container"></div>
+                    </div>
+
+                    <div class="section-box flex-section">
+                        <h2>ผลผลิตที่จะได้รับ</h2>
+                        <div id="reward-items-list" class="item-list-container"></div>
+                    </div>
+
+                    <div class="controls-footer">
+                        <button id="btn-sound" class="toggle-btn active" onclick="toggleSound()">
+                            <span class="btn-icon-box"><img src="img/sound.png" onerror="this.src='img/sound.png'"></span>
+                            <span class="btn-text">ปิดเสียงแจ้งเตือน</span>
+                        </button>
+                        <button id="btn-notify" class="toggle-btn active" onclick="toggleNotify()">
+                            <span class="btn-icon-box"><img src="img/notify.png" onerror="this.src='img/notify.png'"></span>
+                            <span class="btn-text">ปิดแจ้งเตือน</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <audio id="alertSound" src="sounds/alert.mp3" preload="auto"></audio>
+
+    <audio id="alertSound" src="sounds/alert.ogg" preload="auto"></audio>
     <script src="script.js"></script>
 </body>
 </html>

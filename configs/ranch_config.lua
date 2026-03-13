@@ -8,7 +8,7 @@ ConfigRanch = {
     },
 
     Zones = {
-        ['ValentineRanch'] = {
+        ['Valentine Ranch'] = {
             name = "Valentine Farm",
             showBlip = true,
             blipSprite = "blip_mp_roundup",
@@ -39,7 +39,7 @@ ConfigRanch = {
                     price = 30, 
                     maxLimit = 10, 
                     growthTime = 60,
-                    feedItem = "corn",
+                    feedItem = "bandage",
                     requiredFeedCount = 2,
                     rewards = {
                         { item = "meat", amount = 1 }
@@ -49,30 +49,30 @@ ConfigRanch = {
                     price = 10, 
                     maxLimit = 15, 
                     growthTime = 60,
-                    feedItem = "corn",
+                    feedItem = "bacon",
                     requiredFeedCount = 2,
                     rewards = {
-                        { item = "egg", amount = 1 }
+                        { item = "bacon", amount = 1 }
                     }
                 },
                 ['goat'] = { 
                     price = 10, 
                     maxLimit = 15, 
                     growthTime = 60,
-                    feedItem = "corn",
+                    feedItem = "bait",
                     requiredFeedCount = 2,
                     rewards = {
-                        { item = "egg", amount = 1 }
+                        { item = "apple", amount = 1 }
                     }
                 },
                 ['sheep'] = { 
                     price = 10, 
                     maxLimit = 15, 
                     growthTime = 60,
-                    feedItem = "corn",
+                    feedItem = "cheesecake",
                     requiredFeedCount = 2,
                     rewards = {
-                        { item = "egg", amount = 1 }
+                        { item = "water", amount = 1 }
                     }
                 }
             }
