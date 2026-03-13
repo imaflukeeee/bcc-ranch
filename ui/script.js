@@ -33,7 +33,7 @@ window.addEventListener('message', function(event) {
         renderShop();       
         renderMyAnimals();  
         document.getElementById('app').style.display = 'block';
-
+    
         // ==================================================
         // ระบบเวลานับถอยหลัง & จำลองเลือดลด Real-time บน UI
         // ==================================================
@@ -41,7 +41,6 @@ window.addEventListener('message', function(event) {
         uiTimer = setInterval(() => {
             let needsRender = false;
 
-            // [ตั้งค่าให้ตรงกับ Server] 
             let gracePeriod = 60; // ระยะทนหิว 60 วินาที 
             let drainRate = 0.6;  // ลด 1 HP ทุกๆ 0.6 วินาที
 
@@ -57,9 +56,10 @@ window.addEventListener('message', function(event) {
                         a.meal_elapsed = timePerFeed;
                         a.is_hungry = 1; // สั่งให้หิว!
                         a.ui_hungry_ticks = 0; // รีเซ็ตเวลาหิว
-
-                        // 🔔 ร้องครั้งที่ 1: ตอนที่กระเพาะอาหารตกมาเหลือ 0% พอดี
-                        playHungrySound(a.animal_type); 
+                        
+                        // 🔔 ร้องเตือนและแจ้งเตือนครั้งที่ 1: หิว 0%
+                        playAlertSound(); 
+                        sendNotify(`สัตว์ของคุณหิวโปรดให้อาหาร`, '#FFFFFF');
                     }
                     needsRender = true;
                 } 
@@ -75,9 +75,10 @@ window.addEventListener('message', function(event) {
                             a.hp -= (1 / drainRate); // หักเลือดทีละนิด
                             if (a.hp < 0) a.hp = 0;
                             
-                            // 🔔 ร้องครั้งที่ 2: ดักจับตอนที่เลือดเพิ่งจะตกลงมาถึงจุด 50% (หรือต่ำกว่า 50% ในวินาทีนั้นพอดี)
+                            // 🔔 ร้องเตือนและแจ้งเตือนครั้งที่ 2: HP ลดมาถึง 50% หรือต่ำกว่า
                             if (previousHp > 50 && a.hp <= 50) {
-                                playHungrySound(a.animal_type);
+                                playAlertSound();
+                                sendNotify(`สัตว์ของคุณกำลังจะอดตายโปรดให้อาหาร`, '#FFFFFF');
                             }
 
                             needsRender = true;
@@ -448,17 +449,26 @@ function reciveItem(dbId, animalType) {
     });
 }
 
-function playHungrySound(animalType) {
-    let soundFile = "";
-    if (animalType === "cow") soundFile = "cow.mp3";
-    else if (animalType === "pig") soundFile = "pig.mp3";
-    else if (animalType === "chicken") soundFile = "chicken.mp3";
-    else if (animalType === "sheep") soundFile = "sheep.mp3";
-    else if (animalType === "goat") soundFile = "goat.mp3";
+// ==========================================
+// 5. ฟังก์ชันส่งคำสั่งเล่นเสียงไปให้ Lua (ผ่าน interact-sound)
+// ==========================================
+function playAlertSound() {
+    fetch(`https://${GetParentResourceName()}/playSound`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ soundName: "alert", volume: 0.5 })
+    }).catch(err => {
+        console.log("Error sending sound request:", err);
+    });
+}
 
-    if (soundFile !== "") {
-        let audio = new Audio("sounds/" + soundFile);
-        audio.volume = 0.5; // ปรับความดังตรงนี้ (0.1 - 1.0)
-        audio.play().catch(err => { console.log("เล่นเสียงไม่ได้:", err); });
-    }
+// ==========================================
+// 6. ฟังก์ชันส่งคำสั่งแจ้งเตือน (mtn_notify) ไปให้ Lua
+// ==========================================
+function sendNotify(msg, colorCode) {
+    fetch(`https://${GetParentResourceName()}/sendNotify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: msg, color: colorCode, duration: 5000 })
+    }).catch(err => console.log(err));
 }

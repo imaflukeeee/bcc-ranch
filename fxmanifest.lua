@@ -17,8 +17,8 @@ files {
     'ui/index.html',
     'ui/style.css',
     'ui/script.js',
-    'ui/img/*.png',
-    'ui/sounds/*.mp3'
+    'ui/sounds/*.png',
+    'ui/img/*.png'
 }
 
 server_scripts {

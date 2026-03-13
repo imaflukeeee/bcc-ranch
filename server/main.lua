@@ -60,7 +60,7 @@ local function GetCalculatedAnimalState(animalData, src)
         end
     end
 
--- 3. ระบบความหิว, HP และการตาย
+    -- 3. ระบบความหิว, HP และการตาย
     local current_hp = animalData.hp or 100
     local hunger_start = animalData.hunger_start_time or 0
 
@@ -177,7 +177,7 @@ BccUtils.RPC:Register("bcc-ranch:server:buyAnimal", function(data, cb, source)
         
         local count = tonumber(currentCount) or 0
         if count >= maxLimit then
-            cb(false, "")
+            cb(false, "คุณมีสัตว์ชนิดนี้เต็มความจุของฟาร์มแล้ว!")
             return
         end
 
@@ -192,7 +192,7 @@ BccUtils.RPC:Register("bcc-ranch:server:buyAnimal", function(data, cb, source)
                 data.is_hungry = 1
                 data.feed_count = 0
                 data.hp = 100
-                cb(true, "", data)
+                cb(true, "ซื้อสัตว์สำเร็จแล้ว!", data)
             end)
         else
             cb(false, "เงินของคุณไม่พอ (ต้องการ: $" .. price .. ")")
@@ -219,12 +219,12 @@ BccUtils.RPC:Register("bcc-ranch:server:feedAnimal", function(data, cb, source)
             end
 
             if animalData.current_growth >= animalData.req_time then
-                cb(false, "")
+                cb(false, "สัตว์โตเต็มที่แล้ว ไม่จำเป็นต้องให้อาหาร")
                 return
             end
 
             if animalData.feed_count >= animalData.req_feeds then
-                cb(false, "")
+                cb(false, "สัตว์ได้รับอาหารครบถ้วนแล้ว")
                 return
             end
 
@@ -232,7 +232,7 @@ BccUtils.RPC:Register("bcc-ranch:server:feedAnimal", function(data, cb, source)
             local halfTime = math.floor(timePerFeed * 0.5)
 
             if animalData.is_hungry == 0 and animalData.meal_elapsed < halfTime then
-                cb(false, "")
+                cb(false, "สัตว์ยังอิ่มอยู่ ยังไม่พร้อมกินอาหารเพิ่ม")
                 return
             end
 
@@ -267,7 +267,7 @@ BccUtils.RPC:Register("bcc-ranch:server:feedAnimal", function(data, cb, source)
                 cb(false, "คุณไม่มี " .. requiredItem .. " ในกระเป๋า")
             end
         else
-            cb(false, "")
+            cb(false, "ไม่พบข้อมูลสัตว์ตัวนี้")
         end
     end)
 end)
@@ -306,19 +306,18 @@ BccUtils.RPC:Register("bcc-ranch:server:reciveItem", function(data, cb, source)
 
             local zoneConfig = ConfigRanch.Zones[animalData.zone_id]
             if not zoneConfig or not zoneConfig.allowedAnimals[animalType] then
-                cb(false, "")
+                cb(false, "ข้อผิดพลาดของข้อมูลฟาร์ม")
                 return
             end
 
             local rewards = zoneConfig.allowedAnimals[animalType].rewards
 
             -- ==========================================
-            -- [เพิ่มใหม่] ป้องกันบั๊กกระเป๋าเต็มแล้วสัตว์ค้าง
+            -- ป้องกันบั๊กกระเป๋าเต็มแล้วสัตว์ค้าง
             -- ==========================================
             local canCarryAll = true
             if rewards then
                 for _, reward in ipairs(rewards) do
-                    -- เช็คว่าถือไอเทมนี้เพิ่มได้ไหม ถ้าไม่ได้ให้หยุดการทำงานทันที
                     if not exports.vorp_inventory:canCarryItem(_source, reward.item, reward.amount) then
                         canCarryAll = false
                         break
@@ -352,7 +351,7 @@ BccUtils.RPC:Register("bcc-ranch:server:reciveItem", function(data, cb, source)
             exports.oxmysql:execute('DELETE FROM player_ranch_animals WHERE id = ?', {animalDbId})
             cb(true, "")
         else
-            cb(false, "")
+            cb(false, "ไม่พบข้อมูลผลผลิตของสัตว์ตัวนี้")
         end
     end)
 end)
@@ -362,7 +361,7 @@ end)
 -- ==========================================
 CreateThread(function()
     while true do
-        Wait(5000) -- ทำงานทุกๆ 1 นาที
+        Wait(60000) -- [แก้ไขแล้ว] ทำงานทุกๆ 1 นาที (60000 มิลลิวินาที) เซฟ Database
         local players = GetPlayers()
         for _, src in ipairs(players) do
             local user = VORPcore.getUser(src)
@@ -380,4 +379,13 @@ CreateThread(function()
             end
         end
     end
+end)
+
+-- ==========================================
+-- ระบบลบสัตว์ถาวร (เมื่อผู้เล่นเดินออกห่างเกินระยะ)
+-- ==========================================
+RegisterNetEvent("bcc-ranch:server:abandonAnimal")
+AddEventHandler("bcc-ranch:server:abandonAnimal", function(dbId)
+    -- ลบสัตว์ตัวนี้ออกจากฐานข้อมูลถาวร
+    exports.oxmysql:execute('DELETE FROM player_ranch_animals WHERE id = ?', {dbId})
 end)

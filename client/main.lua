@@ -165,6 +165,64 @@ CreateThread(function()
 end)
 
 -- ==========================================
+-- ระบบจัดการสัตว์หายถาวร (เมื่ออยู่ห่างเกินระยะ)
+-- ==========================================
+CreateThread(function()
+    while true do
+        Wait(2000) -- ตรวจสอบระยะทางทุกๆ 2 วินาที
+        
+        if myAnimals and #myAnimals > 0 then
+            local ped = PlayerPedId()
+            local pCoords = GetEntityCoords(ped)
+            local abandonedAny = false
+            local maxDist = ConfigRanch.AbandonDistance or 100.0 -- ดึงค่าจาก Config
+
+            -- วนลูปถอยหลัง (เพื่อป้องกันบั๊กตอนลบข้อมูลออกจาก Table)
+            for i = #myAnimals, 1, -1 do
+                local animal = myAnimals[i]
+                local aCoordsTable = json.decode(animal.coords)
+                local aCoords = vector3(aCoordsTable.x, aCoordsTable.y, aCoordsTable.z)
+                local dist = #(pCoords - aCoords)
+                
+                -- ถ้าระยะห่างเกินกว่าที่กำหนด -> สัตว์หายไปถาวร
+                if dist > maxDist then
+                    local animalPed = spawnedPeds[animal.id]
+                    
+                    -- 1. ลบโมเดลสัตว์ในเกมทิ้ง
+                    if animalPed and DoesEntityExist(animalPed) then
+                        ClearPedTasksImmediately(animalPed)
+                        SetEntityAsMissionEntity(animalPed, true, true)
+                        DeleteEntity(animalPed)
+                        spawnedPeds[animal.id] = nil
+                    end
+
+                    -- 2. สั่งลบข้อมูลใน Database ถาวร
+                    TriggerServerEvent("bcc-ranch:server:abandonAnimal", animal.id)
+
+                    -- 3. สั่งซ่อน UI ลอยบนหัวของสัตว์ตัวนั้น
+                    SendNUIMessage({ action = "removeDeadAnimal", dbId = animal.id })
+
+                    -- 4. ลบออกจากข้อมูล Cache ในตัวเกม
+                    table.remove(myAnimals, i)
+                    abandonedAny = true
+                end
+            end
+
+            -- แจ้งเตือน 1 ครั้งเมื่อมีสัตว์หายไปจากการทิ้งระยะห่าง
+            if abandonedAny then
+                TriggerEvent("mtn_notify:send", { 
+                    title = "", 
+                    description = "สัตว์ของคุณถูกขโมยหายไปแล้วเนื่องจากคุณอยู่ห่างจากพื้นที่ฟาร์มมากเกินไป", 
+                    placement = "middle-right", 
+                    duration = 5000, 
+                    progress = { enabled = true, type = 'bar', color = '#FFFFFF' } 
+                })
+            end
+        end
+    end
+end)
+
+-- ==========================================
 -- NUI Callbacks (แยกส่วนการแจ้งเตือนตามเหตุการณ์)
 -- ==========================================
 
@@ -287,6 +345,31 @@ RegisterNUICallback('refreshAnimals', function(data, cb)
             })
         end
     end)
+    cb('ok')
+end)
+
+RegisterNUICallback('playSound', function(data, cb)
+    if data and data.soundName then
+        -- สั่งเล่นเสียงไปที่ interact-sound
+        -- parameter: (ชื่อไฟล์ไม่รวมนามสกุล, ความดัง 0.1 - 1.0)
+        TriggerEvent('InteractSound_CL:PlayOnOne', data.soundName, data.volume)
+    end
+    cb('ok')
+end)
+
+-- ==========================================
+-- เพิ่มใหม่: รับคำสั่งแจ้งเตือน (mtn_notify) จาก UI
+-- ==========================================
+RegisterNUICallback('sendNotify', function(data, cb)
+    if data and data.description then
+        TriggerEvent("mtn_notify:send", { 
+            title = "", 
+            description = data.description, 
+            placement = "middle-right", 
+            duration = 6000, 
+            progress = { enabled = true, type = 'bar', color = data.color or '#FFFFFF' }
+        })
+    end
     cb('ok')
 end)
 

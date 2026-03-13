@@ -1,4 +1,7 @@
 ConfigRanch = {
+    -- กำหนดระยะห่าง (เมตร) ที่หากผู้เล่นเดินออกไปไกลกว่านี้ สัตว์จะหายถาวรและต้องซื้อใหม่
+    AbandonDistance = 100.0, 
+
     ranchSetup = {
         animalFollowSettings = { offsetX = 1.0, offsetY = 1.0, offsetZ = 1.0 },
         animalsWalkOnly = false,
@@ -43,6 +46,26 @@ ConfigRanch = {
                     }
                 },
                 ['chicken'] = { 
+                    price = 10, 
+                    maxLimit = 15, 
+                    growthTime = 60,
+                    feedItem = "corn",
+                    requiredFeedCount = 2,
+                    rewards = {
+                        { item = "egg", amount = 1 }
+                    }
+                },
+                ['goat'] = { 
+                    price = 10, 
+                    maxLimit = 15, 
+                    growthTime = 60,
+                    feedItem = "corn",
+                    requiredFeedCount = 2,
+                    rewards = {
+                        { item = "egg", amount = 1 }
+                    }
+                },
+                ['sheep'] = { 
                     price = 10, 
                     maxLimit = 15, 
                     growthTime = 60,
