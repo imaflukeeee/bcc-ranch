@@ -135,12 +135,14 @@ window.addEventListener('message', function(event) {
                 tag.style.display = "block";
 
                 // ไอคอนสัตว์
-                let icon = "🐾";
-                if (anim.animal_type === "cow") icon = "🐮";
-                if (anim.animal_type === "pig") icon = "🐷";
-                if (anim.animal_type === "chicken") icon = "🐔";
-                if (anim.animal_type === "sheep") icon = "🐑";
-                if (anim.animal_type === "goat") icon = "🐐";
+                let imgFile = "default.png";
+                if (anim.animal_type === "cow") imgFile = "cow.png";
+                if (anim.animal_type === "pig") imgFile = "pig.png";
+                if (anim.animal_type === "chicken") imgFile = "chicken.png";
+                if (anim.animal_type === "sheep") imgFile = "sheep.png";
+                if (anim.animal_type === "goat") imgFile = "goat.png";
+
+                let icon = `<img src="img/${imgFile}" style="width: 60px; height: 60px; opacity: 0.8; vertical-align: middle;">`;
 
                 // ข้อมูลสำหรับวาดหลอดเลือด
                 let hp = Math.floor(anim.hp !== undefined ? anim.hp : 100);
