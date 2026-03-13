@@ -28,8 +28,8 @@ ConfigRanch = {
                     requiredFeedCount = 2,
                     -- กำหนดไอเทมผลผลิตที่ได้รับตอนโต 100% (ใส่กี่ชิ้น/กี่ชนิดก็ได้)
                     rewards = {
-                        { item = "meat", amount = 3 },
-                        { item = "milk", amount = 2 }
+                        { item = "meat", amount = 1 },
+                        { item = "milk", amount = 1 }
                     }
                 },
                 ['pig'] = { 
@@ -39,7 +39,7 @@ ConfigRanch = {
                     feedItem = "corn",
                     requiredFeedCount = 2,
                     rewards = {
-                        { item = "meat", amount = 2 }
+                        { item = "meat", amount = 1 }
                     }
                 },
                 ['chicken'] = { 
@@ -49,7 +49,7 @@ ConfigRanch = {
                     feedItem = "corn",
                     requiredFeedCount = 2,
                     rewards = {
-                        { item = "egg", amount = 5 }
+                        { item = "egg", amount = 1 }
                     }
                 }
             }

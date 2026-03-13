@@ -243,3 +243,41 @@ AddEventHandler('onResourceStop', function(resourceName)
         if blip and blip.Remove then blip:Remove() end
     end
 end)
+
+-- ==========================================
+-- ระบบจัดการสัตว์ตาย (อัปเดตแก้บั๊ก UI)
+-- ==========================================
+RegisterNetEvent("bcc-ranch:client:deleteDeadAnimal")
+AddEventHandler("bcc-ranch:client:deleteDeadAnimal", function(dbId)
+    -- ลบโมเดลสัตว์ในเกม
+    if spawnedPeds[dbId] then
+        local ped = spawnedPeds[dbId]
+        if DoesEntityExist(ped) then
+            DeletePed(ped)
+        end
+        spawnedPeds[dbId] = nil
+    end
+    
+    -- ลบออกจาก Cache และสั่งให้ UI อัปเดตแบบไม่รีเฟรชข้อมูลตัวอื่น
+    if myAnimals then
+        for i, a in ipairs(myAnimals) do
+            if a.id == dbId then
+                table.remove(myAnimals, i)
+                TriggerEvent("mtn_notify:send", { 
+                    title = "", 
+                    description = "สัตว์เลี้ยงของคุณเสียชีวิตเนื่องจากขาดอาหาร", 
+                    placement = "middle-right", 
+                    duration = 5000, 
+                    progress = { enabled = true, type = 'bar', color = '#FFFFFF' }
+                })
+                
+                -- หากเปิด UI อยู่ ส่งคำสั่งไปลบแค่ตัวที่ตาย โดยไม่รบกวนเวลาตัวอื่น
+                SendNUIMessage({ 
+                    action = "removeDeadAnimal", 
+                    dbId = dbId 
+                })
+                break
+            end
+        end
+    end
+end)

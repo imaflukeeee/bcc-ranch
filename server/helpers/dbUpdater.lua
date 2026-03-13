@@ -11,6 +11,9 @@ CreateThread(function()
             `feed_count` INT(11) NOT NULL DEFAULT 0,
             `last_feed_time` INT(11) NOT NULL DEFAULT 0,
             `is_hungry` TINYINT(1) NOT NULL DEFAULT 1,
+            `hp` INT(11) NOT NULL DEFAULT 100,
+            `hunger_start_time` INT(11) NOT NULL DEFAULT 0,
+            `last_active_time` INT(11) NOT NULL DEFAULT 0,
             PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])

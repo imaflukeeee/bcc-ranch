@@ -23,6 +23,11 @@ window.addEventListener('message', function(event) {
             a.req_feeds = a.req_feeds || 2;
             a.is_hungry = a.is_hungry !== undefined ? a.is_hungry : 1;
             a.meal_elapsed = a.meal_elapsed || 0; 
+            a.hp = a.hp !== undefined ? a.hp : 100;
+
+            // เตรียมตัวแปรสำหรับจำลองเวลาหิวบน UI
+            // ถ้าเปิดเมนูมาแล้วเลือดน้อยกว่า 100 แปลว่าพ้นระยะทนหิวไปแล้ว
+            a.ui_hungry_ticks = (a.hp < 100) ? 9999 : 0; 
         });
 
         renderShop();       
@@ -30,12 +35,18 @@ window.addEventListener('message', function(event) {
         document.getElementById('app').style.display = 'block';
 
         // ==================================================
-        // ระบบเวลานับถอยหลัง Real-time บน UI
+        // ระบบเวลานับถอยหลัง & จำลองเลือดลด Real-time บน UI
         // ==================================================
         if(uiTimer) clearInterval(uiTimer);
         uiTimer = setInterval(() => {
             let needsRender = false;
+
+            // [ตั้งค่าให้ตรงกับ Server] 
+            let gracePeriod = 60; // ระยะทนหิว 60 วินาที (ถ้าปรับ Server เป็นปกติ อย่าลืมแก้ตรงนี้เป็น 300)
+            let drainRate = 0.6;  // ลด 1 HP ทุกๆ 0.6 วินาที (ถ้าปรับ Server เป็นปกติ อย่าลืมแก้ตรงนี้เป็น 9)
+
             myAnimals.forEach(a => {
+                // 1. จำลองการเติบโตและการย่อยอาหาร
                 if ((a.is_hungry == 0 || a.is_hungry === false) && a.current_growth < a.req_time) {
                     a.current_growth++;
                     a.meal_elapsed++; 
@@ -45,12 +56,35 @@ window.addEventListener('message', function(event) {
                     if (a.meal_elapsed >= timePerFeed && a.feed_count < a.req_feeds) {
                         a.meal_elapsed = timePerFeed;
                         a.is_hungry = 1; // สั่งให้หิว!
+                        a.ui_hungry_ticks = 0; // รีเซ็ตเวลาหิว
                     }
                     needsRender = true;
+                } 
+                // 2. จำลองการลด HP บนหน้าจอ
+                else if (a.is_hungry == 1 || a.is_hungry === true) {
+                    a.ui_hungry_ticks++;
+
+                    // ถ้าเวลาหิวใน UI เกินช่วงทนหิวไปแล้ว (หรือเริ่มมีดาเมจมาก่อนแล้ว) ให้เลือดลด
+                    if (a.ui_hungry_ticks > gracePeriod || a.hp < 100) {
+                        if (a.hp > 0) {
+                            a.hp -= (1 / drainRate); // หักเลือดทีละนิดตามอัตราส่วน
+                            if (a.hp < 0) a.hp = 0;
+                            needsRender = true;
+                        }
+                    }
                 }
             });
+
             if(needsRender) renderMyAnimals();
-        }, 1000);
+        }, 1000); // UI ทำงานทุกๆ 1 วินาที
+    }
+    
+    if (item.action === "removeDeadAnimal") {
+        let index = myAnimals.findIndex(a => a.id == item.dbId);
+        if (index > -1) {
+            myAnimals.splice(index, 1);
+            renderMyAnimals(); // วาด UI ใหม่โดยใช้ข้อมูล Real-time ที่มีอยู่แล้ว
+        }
     }
 
     if (item.action === "closeUI") { closeUI(); }
@@ -194,12 +228,25 @@ function renderMyAnimals() {
             feedBlocksHTML += `<div class="feed-block ${filled}"></div>`;
         }
 
+        // คำนวณสีของ HP
+        let animalHp = Math.floor(animal.hp !== undefined ? animal.hp : 100);
+        let hpColor = (animalHp > 50) ? "#5cb85c" : (animalHp > 20) ? "#f0ad4e" : "#d9534f";
+
         let animalHTML = `
             <div class="animal-card">
                 <div style="flex: 1; padding-right: 15px;">
                     <div style="display:flex; justify-content: space-between; margin-bottom: 5px;">
                         <strong style="font-size:16px;">${icon} ${nameTH} <span style="color:#aaa; font-size:12px;">(ID: ${animal.id})</span></strong>
                         <small>${statusText}</small>
+                    </div>
+
+                    <div class="status-label">
+                        <span>❤️ พลังชีวิต (HP)</span>
+                        <span>${animalHp}%</span>
+                    </div>
+                    <div class="bar-container" style="margin-bottom: 8px;">
+                        <div class="bar-fill-hp" style="width: ${animalHp}%; background: ${hpColor}; border-radius: 4px;"></div>
+                        <div class="bar-dashes"></div>
                     </div>
 
                     <div class="status-label">
@@ -265,6 +312,7 @@ function feedAnimal(dbId, animalType) {
         anim.is_hungry = 0;   
         anim.feed_count += 1; 
         anim.meal_elapsed = 0; 
+        anim.hp = 100; // เมื่อให้อาหาร HP จะกลับมาเต็มทันทีในหน้า UI
         renderMyAnimals();    
     }
 
