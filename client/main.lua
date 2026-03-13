@@ -109,6 +109,62 @@ CreateThread(function()
 end)
 
 -- ==========================================
+-- ระบบ UI ลอยบนหัวสัตว์ (3D to 2D)
+-- ==========================================
+CreateThread(function()
+    while true do
+        local sleep = 500
+        
+        -- ทำงานเฉพาะตอนที่มีสัตว์เกิดแล้ว
+        if myAnimals and #myAnimals > 0 then
+            local ped = PlayerPedId()
+            local pCoords = GetEntityCoords(ped)
+            local floatingData = {}
+            local hasVisible = false
+
+            for _, animal in ipairs(myAnimals) do
+                local animalPed = spawnedPeds[animal.id]
+                
+                if animalPed and DoesEntityExist(animalPed) then
+                    local aCoords = GetEntityCoords(animalPed)
+                    local dist = #(pCoords - aCoords)
+
+                    -- [Distance Check] โชว์ UI เฉพาะระยะไม่เกิน 15 เมตร
+                    if dist < 15.0 then 
+                        sleep = 0 -- ถ้าอยู่ใกล้สัตว์ ปรับลูปให้เร็วขึ้นเพื่อให้ UI ลอยตามสมูทไม่กระตุก
+                        
+                        -- ดึงพิกัดจุดเหนือหัวสัตว์เล็กน้อย (z + 1.2)
+                        local onScreen, screenX, screenY = GetScreenCoordFromWorldCoord(aCoords.x, aCoords.y, aCoords.z + 1.2)
+                        
+                        -- ถ้ากล้องมองเห็นสัตว์ตัวนั้นอยู่
+                        if onScreen then
+                            hasVisible = true
+                            table.insert(floatingData, {
+                                id = animal.id,
+                                x = screenX,
+                                y = screenY,
+                                dist = dist
+                            })
+                        end
+                    end
+                end
+            end
+
+            -- ส่งข้อมูลไปให้ HTML วาด ถ้ามีสัตว์ในจอ
+            if hasVisible then
+                SendNUIMessage({
+                    action = "updateFloatingUI",
+                    data = floatingData
+                })
+            else
+                SendNUIMessage({ action = "hideFloatingUI" })
+            end
+        end
+        Wait(sleep)
+    end
+end)
+
+-- ==========================================
 -- NUI Callbacks (แยกส่วนการแจ้งเตือนตามเหตุการณ์)
 -- ==========================================
 

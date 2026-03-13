@@ -42,8 +42,8 @@ window.addEventListener('message', function(event) {
             let needsRender = false;
 
             // [ตั้งค่าให้ตรงกับ Server] 
-            let gracePeriod = 60; // ระยะทนหิว 60 วินาที (ถ้าปรับ Server เป็นปกติ อย่าลืมแก้ตรงนี้เป็น 300)
-            let drainRate = 0.6;  // ลด 1 HP ทุกๆ 0.6 วินาที (ถ้าปรับ Server เป็นปกติ อย่าลืมแก้ตรงนี้เป็น 9)
+            let gracePeriod = 60; // ระยะทนหิว 60 วินาที 
+            let drainRate = 0.6;  // ลด 1 HP ทุกๆ 0.6 วินาที
 
             myAnimals.forEach(a => {
                 // 1. จำลองการเติบโตและการย่อยอาหาร
@@ -57,6 +57,9 @@ window.addEventListener('message', function(event) {
                         a.meal_elapsed = timePerFeed;
                         a.is_hungry = 1; // สั่งให้หิว!
                         a.ui_hungry_ticks = 0; // รีเซ็ตเวลาหิว
+
+                        // 🔔 ร้องครั้งที่ 1: ตอนที่กระเพาะอาหารตกมาเหลือ 0% พอดี
+                        playHungrySound(a.animal_type); 
                     }
                     needsRender = true;
                 } 
@@ -64,11 +67,19 @@ window.addEventListener('message', function(event) {
                 else if (a.is_hungry == 1 || a.is_hungry === true) {
                     a.ui_hungry_ticks++;
 
-                    // ถ้าเวลาหิวใน UI เกินช่วงทนหิวไปแล้ว (หรือเริ่มมีดาเมจมาก่อนแล้ว) ให้เลือดลด
+                    // ถ้าเวลาหิวใน UI เกินช่วงทนหิวไปแล้ว ให้เลือดลด
                     if (a.ui_hungry_ticks > gracePeriod || a.hp < 100) {
                         if (a.hp > 0) {
-                            a.hp -= (1 / drainRate); // หักเลือดทีละนิดตามอัตราส่วน
+                            let previousHp = a.hp; // จดจำค่าเลือด 'ก่อนลด'
+                            
+                            a.hp -= (1 / drainRate); // หักเลือดทีละนิด
                             if (a.hp < 0) a.hp = 0;
+                            
+                            // 🔔 ร้องครั้งที่ 2: ดักจับตอนที่เลือดเพิ่งจะตกลงมาถึงจุด 50% (หรือต่ำกว่า 50% ในวินาทีนั้นพอดี)
+                            if (previousHp > 50 && a.hp <= 50) {
+                                playHungrySound(a.animal_type);
+                            }
+
                             needsRender = true;
                         }
                     }
@@ -79,12 +90,98 @@ window.addEventListener('message', function(event) {
         }, 1000); // UI ทำงานทุกๆ 1 วินาที
     }
     
+    // ==========================================
+    // จัดการลบสัตว์ตัวที่ตายออกจากหน้าจอ (แก้ไขบั๊ก UI เด้งเต็ม)
+    // ==========================================
     if (item.action === "removeDeadAnimal") {
         let index = myAnimals.findIndex(a => a.id == item.dbId);
         if (index > -1) {
             myAnimals.splice(index, 1);
             renderMyAnimals(); // วาด UI ใหม่โดยใช้ข้อมูล Real-time ที่มีอยู่แล้ว
         }
+    }
+
+    // ==========================================
+    // รับพิกัดจาก Client มาวาด UI ลอยบนหัวสัตว์
+    // ==========================================
+    if (item.action === "updateFloatingUI") {
+        let activeIds = []; // เก็บ ID สัตว์ที่อยู่ในระยะมองเห็น
+
+        if (item.data && item.data.length > 0) {
+            item.data.forEach(pos => {
+                // ค้นหาข้อมูลสัตว์จาก ID ที่ Client ส่งมา (ถ้าไม่มีใน UI ให้ข้ามไป)
+                let anim = myAnimals.find(a => a.id == pos.id);
+                if (!anim) return;
+
+                activeIds.push(anim.id);
+
+                // สร้างกล่อง UI ลอยหากยังไม่มี
+                let tag = document.getElementById("float-" + anim.id);
+                if (!tag) {
+                    tag = document.createElement('div');
+                    tag.id = "float-" + anim.id;
+                    tag.className = "floating-tag";
+                    document.body.appendChild(tag);
+                }
+
+                // การปรับขนาดตามระยะห่าง (Distance Scaling)
+                let scale = 1.0 - (pos.dist / 15); 
+                if (scale < 0.6) scale = 0.6; // เล็กสุดแค่นี้พอเดี๋ยวอ่านไม่ออก
+
+                // ขยับ UI ตามพิกัดหน้าจอที่ Client คำนวณมาให้
+                tag.style.left = (pos.x * 100) + "vw";
+                tag.style.top = (pos.y * 100) + "vh";
+                tag.style.transform = `translate(-50%, -100%) scale(${scale})`;
+                tag.style.display = "block";
+
+                // ไอคอนสัตว์
+                let icon = "🐾";
+                if (anim.animal_type === "cow") icon = "🐮";
+                if (anim.animal_type === "pig") icon = "🐷";
+                if (anim.animal_type === "chicken") icon = "🐔";
+                if (anim.animal_type === "sheep") icon = "🐑";
+                if (anim.animal_type === "goat") icon = "🐐";
+
+                // ข้อมูลสำหรับวาดหลอดเลือด
+                let hp = Math.floor(anim.hp !== undefined ? anim.hp : 100);
+                let hpColor = (hp > 50) ? "#5cb85c" : (hp > 20) ? "#f0ad4e" : "#d9534f";
+                let isHungry = (anim.is_hungry == 1 || anim.is_hungry === true);
+                
+                let statusIcon = isHungry ? "<span style='color:#ff4d4d;'>⚠️ หิว!</span>" : "<span style='color:#5cb85c;'>✅ ปกติ</span>";
+                
+                // ระบบระยะการมองเห็น: โชว์รายละเอียดแตกต่างกันตามระยะทาง
+                if (pos.dist < 5.0) {
+                    // ระยะใกล้ (ไม่เกิน 5 เมตร): โชว์ละเอียด เลือด + ความหิว
+                    tag.innerHTML = `
+                        <strong>${icon} ฟาร์มของคุณ</strong>
+                        <div style="font-size: 11px; margin-top:2px;">❤️ HP: ${hp}% | ${statusIcon}</div>
+                        <div class="float-hp-bar">
+                            <div class="float-hp-fill" style="width:${hp}%; background:${hpColor};"></div>
+                        </div>
+                    `;
+                    tag.style.background = "rgba(30, 20, 15, 0.85)";
+                    tag.style.border = "2px solid #8B5A2B";
+                    tag.style.boxShadow = "0 4px 10px rgba(0,0,0,0.5)";
+                } else {
+                    // ระยะไกล (5 ถึง 15 เมตร): โชว์แค่ไอคอนสัตว์ลอยๆ
+                    tag.innerHTML = `<span style="font-size:24px;">${icon}</span>`;
+                    tag.style.background = "transparent";
+                    tag.style.border = "none";
+                    tag.style.boxShadow = "none";
+                }
+            });
+        }
+
+        // ซ่อน UI ของสัตว์ตัวที่เดินออกนอกระยะ (หรือไม่มีอยู่แล้ว)
+        document.querySelectorAll('.floating-tag').forEach(el => {
+            let id = parseInt(el.id.replace('float-', ''));
+            if (!activeIds.includes(id)) {
+                el.style.display = "none";
+            }
+        });
+    } else if (item.action === "hideFloatingUI") {
+        // ซ่อน UI ลอยบนหัวทั้งหมด (ตอนออกจากโซนฟาร์ม)
+        document.querySelectorAll('.floating-tag').forEach(el => el.style.display = "none");
     }
 
     if (item.action === "closeUI") { closeUI(); }
@@ -347,4 +444,19 @@ function reciveItem(dbId, animalType) {
             renderMyAnimals();
         }
     });
+}
+
+function playHungrySound(animalType) {
+    let soundFile = "";
+    if (animalType === "cow") soundFile = "cow.mp3";
+    else if (animalType === "pig") soundFile = "pig.mp3";
+    else if (animalType === "chicken") soundFile = "chicken.mp3";
+    else if (animalType === "sheep") soundFile = "sheep.mp3";
+    else if (animalType === "goat") soundFile = "goat.mp3";
+
+    if (soundFile !== "") {
+        let audio = new Audio("sounds/" + soundFile);
+        audio.volume = 0.5; // ปรับความดังตรงนี้ (0.1 - 1.0)
+        audio.play().catch(err => { console.log("เล่นเสียงไม่ได้:", err); });
+    }
 }

@@ -16,7 +16,8 @@ shared_scripts {
 files {
     'ui/index.html',
     'ui/style.css',
-    'ui/script.js'
+    'ui/script.js',
+    'ui/sounds/*.mp3'
 }
 
 server_scripts {

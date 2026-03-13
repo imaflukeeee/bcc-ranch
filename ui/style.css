@@ -185,3 +185,38 @@ hr {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #222; }
 ::-webkit-scrollbar-thumb { background: #8B5A2B; border-radius: 4px; }
+
+/* ========================================== */
+/* UI ลอยบนหัวสัตว์ (Floating UI) */
+/* ========================================== */
+.floating-tag {
+    position: absolute;
+    transform: translate(-50%, -100%); /* จัดให้อยู่ตรงกลาง และลอยเหนือจุดพิกัดเล็กน้อย */
+    background: rgba(30, 20, 15, 0.85);
+    border: 2px solid #8B5A2B;
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: white;
+    font-size: 14px;
+    pointer-events: none; /* ป้องกันเมาส์ไปติด UI นี้ (ให้ทะลุไปคลิกอย่างอื่นได้) */
+    z-index: 50;
+    text-align: center;
+    min-width: 120px;
+    display: none; /* ซ่อนไว้เป็นค่าเริ่มต้น */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    transition: width 0.1s, height 0.1s;
+}
+
+.float-hp-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 3px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+
+.float-hp-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
