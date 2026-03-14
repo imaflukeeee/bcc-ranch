@@ -141,6 +141,7 @@ CreateThread(function()
                             hasVisible = true
                             table.insert(floatingData, {
                                 id = animal.id,
+                                type = animal.animal_type, -- [แก้ไขแล้ว] เพิ่มประเภทสัตว์เพื่อนำไปใช้เรียกรูป PNG
                                 x = screenX,
                                 y = screenY,
                                 dist = dist

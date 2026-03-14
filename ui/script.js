@@ -38,6 +38,23 @@ window.addEventListener('message', function(event) {
     }
     
     if (item.action === "closeUI") { closeUI(); }
+
+    // ==========================================
+    // เพิ่มใหม่: รับค่าจาก Client เพื่อจัดการ UI ลอยบนหัวสัตว์
+    // ==========================================
+    if (item.action === "updateFloatingUI") {
+        updateFloatingIcons(item.data);
+    }
+    
+    if (item.action === "hideFloatingUI") {
+        const container = document.getElementById('floating-container');
+        if (container) container.innerHTML = "";
+    }
+    
+    if (item.action === "removeDeadAnimal") {
+        let el = document.getElementById('float-' + item.dbId);
+        if (el) el.remove();
+    }
 });
 
 function processSimulation() {
@@ -341,4 +358,51 @@ function reciveItem(dbId, animalType) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dbId: dbId, animalType: animalType })
     }).then(resp => resp.json()).then(data => { if (!data.success && backupAnim) { myAnimals.push(backupAnim); renderMyAnimals(); } });
+}
+
+function updateFloatingIcons(data) {
+    const container = document.getElementById('floating-container');
+    if (!container) return;
+
+    // รวบรวม ID ของสัตว์ที่โชว์ในจอตอนนี้
+    let currentIds = data.map(d => 'float-' + d.id);
+
+    // ลบไอคอนที่ไม่อยู่ในจอแล้วออก
+    Array.from(container.children).forEach(child => {
+        if (!currentIds.includes(child.id)) {
+            child.remove();
+        }
+    });
+
+    // วาดหรืออัปเดตไอคอนตัวที่อยู่ในจอ
+    data.forEach(anim => {
+        let elId = 'float-' + anim.id;
+        let el = document.getElementById(elId);
+
+        // x, y ที่ Lua ส่งมาเป็นสัดส่วน 0.0 - 1.0 (แปลงเป็นพิกเซลของหน้าจอ)
+        let screenX = anim.x * window.innerWidth;
+        let screenY = anim.y * window.innerHeight;
+
+        if (!el) {
+            el = document.createElement('div');
+            el.id = elId;
+            el.className = 'floating-icon';
+            
+            let img = document.createElement('img');
+            // เรียงชื่อรูปภาพ เช่น img/cow_icon.png
+            img.src = `img/${anim.type}.png`; 
+            img.onerror = function() { this.src='img/default.png' };
+            
+            el.appendChild(img);
+            container.appendChild(el);
+        }
+
+        // อัปเดตตำแหน่ง x, y
+        el.style.left = screenX + 'px';
+        el.style.top = screenY + 'px';
+        
+        // ทำให้ระยะห่างไกลๆ รูปเล็กลงนิดหน่อย (ลูกเล่นเสริม)
+        let scale = Math.max(0.6, 1 - (anim.dist / 30));
+        el.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    });
 }

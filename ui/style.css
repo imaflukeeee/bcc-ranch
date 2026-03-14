@@ -113,3 +113,31 @@ body { background: transparent; overflow: hidden; display: flex; justify-content
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+
+/* Floating UI บนหัวสัตว์ */
+#floating-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none; /* ป้องกันการคลิกโดนแล้วบังการเล่นเกม */
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.floating-icon {
+    position: absolute;
+    transform: translate(-50%, -50%); /* จัดให้อยู่กึ่งกลางพิกัดจุดที่ส่งมา */
+    width: 32px; /* ปรับขนาดความกว้างของรูปได้ที่นี่ */
+    height: 32px; /* ปรับขนาดความสูงของรูปได้ที่นี่ */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.floating-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* ช่วยให้รูปภาพไม่เสียสัดส่วน */
+}
