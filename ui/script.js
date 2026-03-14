@@ -6,6 +6,9 @@ let uiTimer = null;
 let isSoundEnabled = true;
 let isNotifyEnabled = true;
 
+// ตัวแปรสำหรับเก็บค่า Limit รวมของโซน
+let zoneMaxLimit = 10;
+
 window.addEventListener('message', function(event) {
     let item = event.data;
 
@@ -13,6 +16,8 @@ window.addEventListener('message', function(event) {
         currentZone = item.zone;
         myAnimals = item.myAnimals || [];
         allowedAnimals = item.allowedAnimals || {};
+        
+        zoneMaxLimit = item.zoneMaxLimit || 10;
         
         document.getElementById('farm-name').innerText = currentZone;
         
@@ -39,9 +44,6 @@ window.addEventListener('message', function(event) {
     
     if (item.action === "closeUI") { closeUI(); }
 
-    // ==========================================
-    // เพิ่มใหม่: รับค่าจาก Client เพื่อจัดการ UI ลอยบนหัวสัตว์
-    // ==========================================
     if (item.action === "updateFloatingUI") {
         updateFloatingIcons(item.data);
     }
@@ -54,6 +56,13 @@ window.addEventListener('message', function(event) {
     if (item.action === "removeDeadAnimal") {
         let el = document.getElementById('float-' + item.dbId);
         if (el) el.remove();
+        
+        let index = myAnimals.findIndex(a => a.id == item.dbId);
+        if (index > -1) {
+            myAnimals.splice(index, 1); 
+            renderMyAnimals();          
+            updateLimitDisplay();       
+        }
     }
 });
 
@@ -100,10 +109,7 @@ function processSimulation() {
 }
 
 function updateLimitDisplay() {
-    let totalMaxLimit = 0;
-    for (const key in allowedAnimals) { totalMaxLimit += allowedAnimals[key].maxLimit; }
-    let displayLimit = totalMaxLimit > 0 ? totalMaxLimit : 5;
-    document.getElementById('animal-limit').innerText = `${myAnimals.length}/${displayLimit} Limit`;
+    document.getElementById('animal-limit').innerText = `${myAnimals.length}/${zoneMaxLimit}`;
 }
 
 function renderShop() {
@@ -132,28 +138,24 @@ function renderItemsAndRewards() {
     reqContainer.innerHTML = ""; 
     rewContainer.innerHTML = "";
 
-    // เปลี่ยนมาใช้ class แบบ List แนวนอน
     reqContainer.className = "item-list-container";
     rewContainer.className = "item-list-container";
 
     let reqItemsMap = {};
     let rewItemsMap = {};
 
-    // จัดกลุ่มข้อมูลไอเทมและเชื่อมโยงกับสัตว์ที่ใช้
     for (const key in allowedAnimals) {
         let animalName = getAnimalNameTH(key);
 
-        // 1. จัดกลุ่มอาหารที่ใช้ (Feed Items)
         if(allowedAnimals[key].feedItem) {
             let item = allowedAnimals[key].feedItem;
             if(!reqItemsMap[item]) reqItemsMap[item] = [];
             reqItemsMap[item].push(animalName);
         }
 
-        // 2. จัดกลุ่มผลผลิตที่ได้รับ (Reward Items)
         if(allowedAnimals[key].rewards) {
             allowedAnimals[key].rewards.forEach(r => {
-                let mapKey = r.item + "_" + r.amount; // แยกกลุ่มไอเทมและจำนวน
+                let mapKey = r.item + "_" + r.amount; 
                 if(!rewItemsMap[mapKey]) {
                     rewItemsMap[mapKey] = { item: r.item, amount: r.amount, animals: [] };
                 }
@@ -164,7 +166,6 @@ function renderItemsAndRewards() {
         }
     }
 
-    // วาด UI รายการอาหาร (Feed)
     for (const [item, animals] of Object.entries(reqItemsMap)) {
         let animalsText = animals.join(" , ");
         reqContainer.innerHTML += `
@@ -178,7 +179,6 @@ function renderItemsAndRewards() {
         `;
     }
 
-    // วาด UI รายการผลผลิต (Rewards)
     for (const key in rewItemsMap) {
         let data = rewItemsMap[key];
         let animalsText = data.animals.join(" , ");
@@ -193,7 +193,6 @@ function renderItemsAndRewards() {
         `;
     }
 
-    // กรณีไม่มีข้อมูลให้แสดงข้อความว่างเปล่า
     if (reqContainer.innerHTML === "") {
         reqContainer.innerHTML = `<div class="empty-slot" style="height: 60px; border:none;">ไม่มีข้อมูลอาหาร</div>`;
     }
@@ -218,7 +217,9 @@ function renderMyAnimals() {
             let percent = Math.min((animal.current_growth / animal.req_time) * 100, 100);
             let timeLeft = animal.req_time - animal.current_growth;
             let m = Math.floor(timeLeft / 60); let s = Math.floor(timeLeft % 60);
-            let timeStr = percent >= 100 ? "พร้อมเก็บเกี่ยว" : `${m} นาที ${s} วินาที`;
+            
+            // [แก้ไข] เปลี่ยนเงื่อนไขข้อความที่นี่
+            let timeStr = percent >= 100 ? "พร้อมเก็บเกี่ยวผลผลิต" : `ระยะเวลาเติบโต ${m} นาที ${s} วินาที`;
 
             let isHungry = (animal.is_hungry == 1 || animal.is_hungry === true);
             let isFullyFed = (animal.feed_count >= animal.req_feeds);
@@ -243,7 +244,6 @@ function renderMyAnimals() {
                 actionBtn = (hungerPercent <= 50) ? `<button class="btn-feed" onclick="feedAnimal(${animal.id}, '${animal.animal_type}')">ให้อาหาร</button>` : `<button class="btn-wait" disabled>รอย่อย</button>`;
             }
 
-            // โครงสร้างแบบแนวนอน (Horizontal Layout)
             listContainer.innerHTML += `
                 <div class="animal-card">
                     <div class="animal-icon"><img src="${imgFile}" onerror="this.src='img/default.png'"></div>
@@ -273,7 +273,7 @@ function renderMyAnimals() {
                     </div>
                     
                     <div class="action-area">
-                        <span class="time-out">ระยะเวลาเติบโต ${timeStr}</span>
+                        <span class="time-out">${timeStr}</span>
                         ${actionBtn}
                     </div>
                 </div>
@@ -292,6 +292,11 @@ function toggleSound() {
 function toggleNotify() {
     isNotifyEnabled = !isNotifyEnabled;
     document.getElementById('btn-notify').className = isNotifyEnabled ? "toggle-btn active" : "toggle-btn inactive";
+    
+    fetch(`https://${GetParentResourceName()}/toggleNotifyState`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: isNotifyEnabled })
+    }).catch(err => console.log(err));
 }
 
 function playAlertSound() {
@@ -364,22 +369,18 @@ function updateFloatingIcons(data) {
     const container = document.getElementById('floating-container');
     if (!container) return;
 
-    // รวบรวม ID ของสัตว์ที่โชว์ในจอตอนนี้
     let currentIds = data.map(d => 'float-' + d.id);
 
-    // ลบไอคอนที่ไม่อยู่ในจอแล้วออก
     Array.from(container.children).forEach(child => {
         if (!currentIds.includes(child.id)) {
             child.remove();
         }
     });
 
-    // วาดหรืออัปเดตไอคอนตัวที่อยู่ในจอ
     data.forEach(anim => {
         let elId = 'float-' + anim.id;
         let el = document.getElementById(elId);
 
-        // x, y ที่ Lua ส่งมาเป็นสัดส่วน 0.0 - 1.0 (แปลงเป็นพิกเซลของหน้าจอ)
         let screenX = anim.x * window.innerWidth;
         let screenY = anim.y * window.innerHeight;
 
@@ -389,7 +390,6 @@ function updateFloatingIcons(data) {
             el.className = 'floating-icon';
             
             let img = document.createElement('img');
-            // เรียงชื่อรูปภาพ เช่น img/cow_icon.png
             img.src = `img/${anim.type}.png`; 
             img.onerror = function() { this.src='img/default.png' };
             
@@ -397,11 +397,9 @@ function updateFloatingIcons(data) {
             container.appendChild(el);
         }
 
-        // อัปเดตตำแหน่ง x, y
         el.style.left = screenX + 'px';
         el.style.top = screenY + 'px';
         
-        // ทำให้ระยะห่างไกลๆ รูปเล็กลงนิดหน่อย (ลูกเล่นเสริม)
         let scale = Math.max(0.6, 1 - (anim.dist / 30));
         el.style.transform = `translate(-50%, -50%) scale(${scale})`;
     });

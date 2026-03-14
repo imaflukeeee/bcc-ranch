@@ -6,9 +6,21 @@ local activeBlips = {}
 local myAnimals = {} -- เก็บข้อมูลสัตว์ของตัวเอง
 local spawnedPeds = {} -- เก็บ Entity ID ของสัตว์ที่เสกออกมาเพื่อใช้ลบตอนออกเกม
 
+-- [เพิ่มใหม่] ตัวแปรควบคุมการเปิด/ปิดข้อความแจ้งเตือน (ยกเว้น SendItem)
+local isNotifyEnabled = true 
+
 -- สร้าง Prompt กลุ่มคำสั่ง (ใช้ปุ่ม G)
 local ranchPromptGroup = BccUtils.Prompts:SetupPromptGroup()
 local openMenuPrompt = ranchPromptGroup:RegisterPrompt("Farm", BccUtils.Keys["G"], 1, 1, true, 'hold', { timedeventhash = "MEDIUM_TIMED_EVENT" })
+
+-- ==========================================
+-- [เพิ่มใหม่] ฟังก์ชันกรองการแจ้งเตือน (เช็คสถานะปุ่ม Toggle ก่อนแสดงผล)
+-- ==========================================
+local function ShowNotify(data)
+    if isNotifyEnabled then
+        TriggerEvent("mtn_notify:send", data)
+    end
+end
 
 -- ==========================================
 -- ระบบโหลดและเสกสัตว์ (Local Ped)
@@ -86,6 +98,7 @@ CreateThread(function()
             if openMenuPrompt:HasCompleted() then
                 local zoneConfig = ConfigRanch.Zones[currentZone]
                 local allowedAnimals = zoneConfig and zoneConfig.allowedAnimals or {}
+                local zoneLimit = zoneConfig and zoneConfig.maxLimit or 10 
                 
                 BccUtils.RPC:Call("bcc-ranch:server:getMyAnimals", {}, function(success, freshAnimalsData)
                     if success then
@@ -94,11 +107,10 @@ CreateThread(function()
                             action = "openRanchUI", 
                             zone = currentZone, 
                             myAnimals = myAnimals, 
-                            allowedAnimals = allowedAnimals 
+                            allowedAnimals = allowedAnimals,
+                            zoneMaxLimit = zoneLimit
                         })
                         SetNuiFocus(true, true)
-                    else
-                        -- [แยกส่วนที่ 1] นำแจ้งเตือนโหลดข้อมูลฟาร์มล้มเหลวออกแล้ว
                     end
                 end)
                 Wait(1500)
@@ -115,7 +127,6 @@ CreateThread(function()
     while true do
         local sleep = 500
         
-        -- ทำงานเฉพาะตอนที่มีสัตว์เกิดแล้ว
         if myAnimals and #myAnimals > 0 then
             local ped = PlayerPedId()
             local pCoords = GetEntityCoords(ped)
@@ -129,19 +140,16 @@ CreateThread(function()
                     local aCoords = GetEntityCoords(animalPed)
                     local dist = #(pCoords - aCoords)
 
-                    -- [Distance Check] โชว์ UI เฉพาะระยะไม่เกิน 15 เมตร
                     if dist < 15.0 then 
-                        sleep = 0 -- ถ้าอยู่ใกล้สัตว์ ปรับลูปให้เร็วขึ้นเพื่อให้ UI ลอยตามสมูทไม่กระตุก
+                        sleep = 0 
                         
-                        -- ดึงพิกัดจุดเหนือหัวสัตว์เล็กน้อย (z + 1.2)
                         local onScreen, screenX, screenY = GetScreenCoordFromWorldCoord(aCoords.x, aCoords.y, aCoords.z + 1.2)
                         
-                        -- ถ้ากล้องมองเห็นสัตว์ตัวนั้นอยู่
                         if onScreen then
                             hasVisible = true
                             table.insert(floatingData, {
                                 id = animal.id,
-                                type = animal.animal_type, -- [แก้ไขแล้ว] เพิ่มประเภทสัตว์เพื่อนำไปใช้เรียกรูป PNG
+                                type = animal.animal_type,
                                 x = screenX,
                                 y = screenY,
                                 dist = dist
@@ -151,7 +159,6 @@ CreateThread(function()
                 end
             end
 
-            -- ส่งข้อมูลไปให้ HTML วาด ถ้ามีสัตว์ในจอ
             if hasVisible then
                 SendNUIMessage({
                     action = "updateFloatingUI",
@@ -170,26 +177,23 @@ end)
 -- ==========================================
 CreateThread(function()
     while true do
-        Wait(2000) -- ตรวจสอบระยะทางทุกๆ 2 วินาที
+        Wait(2000) 
         
         if myAnimals and #myAnimals > 0 then
             local ped = PlayerPedId()
             local pCoords = GetEntityCoords(ped)
             local abandonedAny = false
-            local maxDist = ConfigRanch.AbandonDistance or 100.0 -- ดึงค่าจาก Config
+            local maxDist = ConfigRanch.AbandonDistance or 100.0
 
-            -- วนลูปถอยหลัง (เพื่อป้องกันบั๊กตอนลบข้อมูลออกจาก Table)
             for i = #myAnimals, 1, -1 do
                 local animal = myAnimals[i]
                 local aCoordsTable = json.decode(animal.coords)
                 local aCoords = vector3(aCoordsTable.x, aCoordsTable.y, aCoordsTable.z)
                 local dist = #(pCoords - aCoords)
                 
-                -- ถ้าระยะห่างเกินกว่าที่กำหนด -> สัตว์หายไปถาวร
                 if dist > maxDist then
                     local animalPed = spawnedPeds[animal.id]
                     
-                    -- 1. ลบโมเดลสัตว์ในเกมทิ้ง
                     if animalPed and DoesEntityExist(animalPed) then
                         ClearPedTasksImmediately(animalPed)
                         SetEntityAsMissionEntity(animalPed, true, true)
@@ -197,21 +201,16 @@ CreateThread(function()
                         spawnedPeds[animal.id] = nil
                     end
 
-                    -- 2. สั่งลบข้อมูลใน Database ถาวร
                     TriggerServerEvent("bcc-ranch:server:abandonAnimal", animal.id)
-
-                    -- 3. สั่งซ่อน UI ลอยบนหัวของสัตว์ตัวนั้น
                     SendNUIMessage({ action = "removeDeadAnimal", dbId = animal.id })
-
-                    -- 4. ลบออกจากข้อมูล Cache ในตัวเกม
                     table.remove(myAnimals, i)
                     abandonedAny = true
                 end
             end
 
-            -- แจ้งเตือน 1 ครั้งเมื่อมีสัตว์หายไปจากการทิ้งระยะห่าง
             if abandonedAny then
-                TriggerEvent("mtn_notify:send", { 
+                -- [แก้ไข] ใช้ฟังก์ชัน ShowNotify แทน
+                ShowNotify({ 
                     title = "", 
                     description = "สัตว์ของคุณถูกขโมยหายไปแล้วเนื่องจากคุณอยู่ห่างจากพื้นที่ฟาร์มมากเกินไป", 
                     placement = "middle-right", 
@@ -224,7 +223,7 @@ CreateThread(function()
 end)
 
 -- ==========================================
--- NUI Callbacks (แยกส่วนการแจ้งเตือนตามเหตุการณ์)
+-- NUI Callbacks
 -- ==========================================
 
 RegisterNUICallback('closeUI', function(data, cb)
@@ -232,7 +231,14 @@ RegisterNUICallback('closeUI', function(data, cb)
     cb('ok')
 end)
 
--- [แยกส่วนที่ 2] เมื่อผู้เล่นกดปุ่ม "ซื้อสัตว์"
+-- [เพิ่มใหม่] รับค่าการกดปุ่มเปิดปิดแจ้งเตือนจากหน้า UI
+RegisterNUICallback('toggleNotifyState', function(data, cb)
+    if data and data.state ~= nil then
+        isNotifyEnabled = data.state
+    end
+    cb('ok')
+end)
+
 RegisterNUICallback('buyAnimal', function(data, cb)
     local animalType = data.animalType
     local zoneId = data.zone
@@ -256,9 +262,9 @@ RegisterNUICallback('buyAnimal', function(data, cb)
             SpawnLocalAnimal(animalForSpawn)
             cb({ success = true, message = message })
         else
-            -- ❌ ซื้อล้มเหลว: จะแจ้งเตือนก็ต่อเมื่อมีข้อความส่งมาเท่านั้น
             if message and message ~= "" then
-                TriggerEvent("mtn_notify:send", { 
+                -- [แก้ไข] ใช้ฟังก์ชัน ShowNotify แทน
+                ShowNotify({ 
                     title = "", 
                     description = message, 
                     placement = "middle-right", 
@@ -271,7 +277,6 @@ RegisterNUICallback('buyAnimal', function(data, cb)
     end)
 end)
 
--- [แยกส่วนที่ 3] เมื่อผู้เล่นกดปุ่ม "ให้อาหาร"
 RegisterNUICallback('feedAnimal', function(data, cb)
     local dbId = data.dbId
     local animalType = data.animalType
@@ -283,9 +288,9 @@ RegisterNUICallback('feedAnimal', function(data, cb)
             PlayAnim("amb_work@world_human_feed_pigs@working@throw_food_low@male_a@trans", "throw_trans_base", 3000)
             cb({ success = true })
         else
-            -- ❌ ให้อาหารล้มเหลว: จะแจ้งเตือนก็ต่อเมื่อมีข้อความส่งมาเท่านั้น
             if message and message ~= "" then
-                TriggerEvent("mtn_notify:send", { 
+                -- [แก้ไข] ใช้ฟังก์ชัน ShowNotify แทน
+                ShowNotify({ 
                     title = "", 
                     description = message, 
                     placement = "middle-right", 
@@ -298,7 +303,6 @@ RegisterNUICallback('feedAnimal', function(data, cb)
     end)
 end)
 
--- [แยกส่วนที่ 4] เมื่อผู้เล่นกดปุ่ม "เก็บเกี่ยวผลผลิต"
 RegisterNUICallback('reciveItem', function(data, cb)
     local dbId = data.dbId
     local animalType = data.animalType
@@ -314,9 +318,9 @@ RegisterNUICallback('reciveItem', function(data, cb)
             end
             cb({ success = true })
         else
-            -- ❌ เก็บเกี่ยวล้มเหลว: จะแจ้งเตือนก็ต่อเมื่อมีข้อความส่งมาเท่านั้น
             if message and message ~= "" then
-                TriggerEvent("mtn_notify:send", { 
+                -- [แก้ไข] ใช้ฟังก์ชัน ShowNotify แทน
+                ShowNotify({ 
                     title = "", 
                     description = message, 
                     placement = "middle-right", 
@@ -337,12 +341,14 @@ RegisterNUICallback('refreshAnimals', function(data, cb)
             myAnimals = freshAnimalsData
             local zoneConfig = ConfigRanch.Zones[currentZone]
             local allowedAnimals = zoneConfig and zoneConfig.allowedAnimals or {}
+            local zoneLimit = zoneConfig and zoneConfig.maxLimit or 10 
             
             SendNUIMessage({ 
                 action = "openRanchUI", 
                 zone = currentZone, 
                 myAnimals = myAnimals,
-                allowedAnimals = allowedAnimals
+                allowedAnimals = allowedAnimals,
+                zoneMaxLimit = zoneLimit
             })
         end
     end)
@@ -351,19 +357,15 @@ end)
 
 RegisterNUICallback('playSound', function(data, cb)
     if data and data.soundName then
-        -- สั่งเล่นเสียงไปที่ interact-sound
-        -- parameter: (ชื่อไฟล์ไม่รวมนามสกุล, ความดัง 0.1 - 1.0)
         TriggerEvent('InteractSound_CL:PlayOnOne', data.soundName, data.volume)
     end
     cb('ok')
 end)
 
--- ==========================================
--- เพิ่มใหม่: รับคำสั่งแจ้งเตือน (mtn_notify) จาก UI
--- ==========================================
 RegisterNUICallback('sendNotify', function(data, cb)
     if data and data.description then
-        TriggerEvent("mtn_notify:send", { 
+        -- [แก้ไข] ใช้ฟังก์ชัน ShowNotify แทน
+        ShowNotify({ 
             title = "", 
             description = data.description, 
             placement = "middle-right", 
@@ -384,12 +386,8 @@ AddEventHandler('onResourceStop', function(resourceName)
     end
 end)
 
--- ==========================================
--- ระบบจัดการสัตว์ตาย (อัปเดตแก้บั๊ก UI)
--- ==========================================
 RegisterNetEvent("bcc-ranch:client:deleteDeadAnimal")
 AddEventHandler("bcc-ranch:client:deleteDeadAnimal", function(dbId)
-    -- ลบโมเดลสัตว์ในเกม
     if spawnedPeds[dbId] then
         local ped = spawnedPeds[dbId]
         if DoesEntityExist(ped) then
@@ -398,20 +396,19 @@ AddEventHandler("bcc-ranch:client:deleteDeadAnimal", function(dbId)
         spawnedPeds[dbId] = nil
     end
     
-    -- ลบออกจาก Cache และสั่งให้ UI อัปเดตแบบไม่รีเฟรชข้อมูลตัวอื่น
     if myAnimals then
         for i, a in ipairs(myAnimals) do
             if a.id == dbId then
                 table.remove(myAnimals, i)
-                TriggerEvent("mtn_notify:send", { 
+                -- [แก้ไข] ใช้ฟังก์ชัน ShowNotify แทน
+                ShowNotify({ 
                     title = "", 
-                    description = "สัตว์เลี้ยงของคุณเสียชีวิตเนื่องจากขาดอาหาร", 
+                    description = "สัตว์เลี้ยงของคุณตายเนื่องจากขาดอาหาร", 
                     placement = "middle-right", 
                     duration = 5000, 
                     progress = { enabled = true, type = 'bar', color = '#FFFFFF' }
                 })
                 
-                -- หากเปิด UI อยู่ ส่งคำสั่งไปลบแค่ตัวที่ตาย โดยไม่รบกวนเวลาตัวอื่น
                 SendNUIMessage({ 
                     action = "removeDeadAnimal", 
                     dbId = dbId 

@@ -1,5 +1,4 @@
 ConfigRanch = {
-    -- กำหนดระยะห่าง (เมตร) ที่หากผู้เล่นเดินออกไปไกลกว่านี้ สัตว์จะหายถาวรและต้องซื้อใหม่
     AbandonDistance = 100.0, 
 
     ranchSetup = {
@@ -13,6 +12,7 @@ ConfigRanch = {
             showBlip = true,
             blipSprite = "blip_mp_roundup",
             coords = vector3(-3826.84, -3488.84, 58.91),
+            maxLimit = 5, 
             zone = {
                 coords = {
                     vector2(-3847.67, -3512.68),
@@ -25,55 +25,38 @@ ConfigRanch = {
             allowedAnimals = {
                 ['cow'] = { 
                     price = 50, 
-                    maxLimit = 5,
                     growthTime = 60,
                     feedItem = "corn",
                     requiredFeedCount = 2,
-                    -- กำหนดไอเทมผลผลิตที่ได้รับตอนโต 100% (ใส่กี่ชิ้น/กี่ชนิดก็ได้)
-                    rewards = {
-                        { item = "meat", amount = 1 },
-                        { item = "milk", amount = 1 }
-                    }
+                    rewards = { { item = "meat", amount = 1 }, { item = "milk", amount = 1 } }
                 },
                 ['pig'] = { 
                     price = 30, 
-                    maxLimit = 10, 
                     growthTime = 60,
                     feedItem = "bandage",
                     requiredFeedCount = 2,
-                    rewards = {
-                        { item = "meat", amount = 1 }
-                    }
+                    rewards = { { item = "meat", amount = 1 } }
                 },
                 ['chicken'] = { 
                     price = 10, 
-                    maxLimit = 15, 
                     growthTime = 60,
                     feedItem = "bacon",
                     requiredFeedCount = 2,
-                    rewards = {
-                        { item = "bacon", amount = 1 }
-                    }
+                    rewards = { { item = "bacon", amount = 1 } }
                 },
                 ['goat'] = { 
                     price = 10, 
-                    maxLimit = 15, 
                     growthTime = 60,
                     feedItem = "bait",
                     requiredFeedCount = 2,
-                    rewards = {
-                        { item = "apple", amount = 1 }
-                    }
+                    rewards = { { item = "apple", amount = 1 } }
                 },
                 ['sheep'] = { 
                     price = 10, 
-                    maxLimit = 15, 
                     growthTime = 60,
                     feedItem = "cheesecake",
                     requiredFeedCount = 2,
-                    rewards = {
-                        { item = "water", amount = 1 }
-                    }
+                    rewards = { { item = "water", amount = 1 } }
                 }
             }
         }

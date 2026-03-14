@@ -170,14 +170,19 @@ BccUtils.RPC:Register("bcc-ranch:server:buyAnimal", function(data, cb, source)
     if not animalZoneConfig then cb(false, "This zone does not allow purchasing this animal") return end
 
     local price = animalZoneConfig.price
-    local maxLimit = animalZoneConfig.maxLimit
+    
+    -- [แก้ไข 1] ดึงค่า Limit รวมมาจากโซนแทนการดึงจากชนิดของสัตว์
+    local zoneMaxLimit = zoneConfig.maxLimit or 10
 
-    exports.oxmysql:scalar('SELECT COUNT(*) FROM player_ranch_animals WHERE charid = ? AND zone_id = ? AND animal_type = ?', 
-    {character.charIdentifier, zoneId, animalType}, function(currentCount)
+    -- [แก้ไข 2] ลบ AND animal_type = ? ออกจาก Query เพื่อดึงจำนวนสัตว์ทั้งหมดที่ผู้เล่นมีใน Zone นี้
+    exports.oxmysql:scalar('SELECT COUNT(*) FROM player_ranch_animals WHERE charid = ? AND zone_id = ?', 
+    {character.charIdentifier, zoneId}, function(currentCount)
         
         local count = tonumber(currentCount) or 0
-        if count >= maxLimit then
-            cb(false, "คุณมีสัตว์ชนิดนี้เต็มความจุของฟาร์มแล้ว!")
+        
+        -- [แก้ไข 3] เช็คจำนวนเทียบกับโควต้ารวมของโซน
+        if count >= zoneMaxLimit then
+            cb(false, "พื้นที่โซนนี้สามารถเลี้ยงสัตว์ได้สูงสุด " .. zoneMaxLimit .. " ตัว")
             return
         end
 
